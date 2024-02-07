@@ -3,11 +3,12 @@ SPRITES := $(patsubst %.java,%.class,$(wildcard res/sprites/*.java))
 IMAGES := $(patsubst %.java,%.class,$(wildcard res/images/*.java))
 
 OUTPUT_DIR := out/
+
 GAME_NAME := "Empty-project"
 # Находим все файлы .class в текущей директории
 CURRENT_DIR := $(patsubst %.java,%.class,$(wildcard *.java))
 
-CLASSES= $(SPRITES) $(IMAGES) $(CURRENT_DIR)#SegaGenesisJavaDemo.class ImginfoScreen.class Imgplus.class 
+CLASSES= $(SPRITES) $(IMAGES) $(SCRIPT_DIR) $(CURRENT_DIR)#SegaGenesisJavaDemo.class ImginfoScreen.class Imgplus.class 
 
 default: $(CLASSES)
 

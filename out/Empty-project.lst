@@ -1,0 +1,3492 @@
+.68000
+ram_start equ 0xff0000
+  TMSS_REG equ 0xa14000
+  HW_VERSION equ 0xa10001
+  VDP_DATA equ 0xc00000
+  VDP_CTRL equ 0xc00004
+  Z80_RAM equ 0xa00000
+  Z80_BUSREQ equ 0xa11100
+  Z80_RESET equ 0xa11200
+
+  ;-------------------------------:
+  ; exception vectors
+  ;-------------------------------:
+
+  dc32 0x00000000   ; startup SP
+  dc32 start        ; startup PC
+  dc32 interrupt    ; bus
+  dc32 interrupt    ; addr
+  dc32 interrupt    ; illegal
+  dc32 interrupt    ; divzero
+  dc32 interrupt    ; CHK
+  dc32 interrupt    ; TRAPV
+  dc32 interrupt    ; priv
+  dc32 interrupt    ; trace
+  dc32 interrupt    ; line 1010 emulator
+  dc32 interrupt    ; line 1111 emulator
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt
+  dc32 interrupt    ; spurious interrupt
+  dc32 interrupt    ; interrupt level 1 (lowest priority)
+  dc32 extint       ; interrupt level 2 = external interrupt
+  dc32 interrupt    ; interrupt level 3
+  dc32 hsync        ; interrupt level 4 = H-sync interrupt
+  dc32 interrupt    ; interrupt level 5
+  dc32 vsync        ; interrupt level 6 = V-sync interrupt
+  dc32 interrupt    ; interrupt level 7 (highest priority)
+  dc32 interrupt    ; TRAP #00 exception
+  dc32 interrupt    ; TRAP #01 exception
+  dc32 interrupt    ; TRAP #02 exception
+  dc32 interrupt    ; TRAP #03 exception
+  dc32 interrupt    ; TRAP #04 exception
+  dc32 interrupt    ; TRAP #05 exception
+  dc32 interrupt    ; TRAP #06 exception
+  dc32 interrupt    ; TRAP #07 exception
+  dc32 interrupt    ; TRAP #08 exception
+  dc32 interrupt    ; TRAP #09 exception
+  dc32 interrupt    ; TRAP #10 exception
+  dc32 interrupt    ; TRAP #11 exception
+  dc32 interrupt    ; TRAP #12 exception
+  dc32 interrupt    ; TRAP #13 exception
+  dc32 interrupt    ; TRAP #14 exception
+  dc32 interrupt    ; TRAP #15 exception
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+  dc32 interrupt    ; Unused (reserved)
+
+  ;-------------------------------:
+  ; cartridge info header
+  ;-------------------------------:
+
+  db "SEGA GENESIS    "  ; must start with "SEGA"
+  db "(C)---- "          ; copyright
+  db "2015.MAY"          ; date
+  db "JAVA GRINDER                                    " ; cart name
+  db "JAVA GRINDER                                    " ; cart name (alt. language)
+  db "GM MK-0000 -00"    ; program type / catalog number
+  dc16 0x0000                ; ROM checksum
+  db "J               "  ; hardware used
+  dc32 0x00000000            ; start of ROM
+  dc32 0x003fffff            ; end of ROM
+  dc32 0x00ff0000,0x00ffffff ; RAM start/end
+  db "            "      ; backup RAM info
+  db "            "      ; modem info
+  db "                                        " ; comment
+  db "JUE             "  ; regions allowed
+
+  ;-------------------------------:
+  ; exception handlers
+  ;-------------------------------:
+
+extint:
+hsync:
+vsync:
+interrupt:
+  rte
+
+0x0200: 4e73 rte                                     
+
+
+CENTER_X equ ram_start+0
+CENTER_Y equ ram_start+4
+res_images_ImgJavaGrinder_image equ ram_start+8
+res_images_ImgJavaGrinder_palette equ ram_start+12
+res_images_ImgJavaGrinder_pattern equ ram_start+16
+res_sprites_SprArrow_clearPattern equ ram_start+20
+res_sprites_SprArrow_palette equ ram_start+24
+res_sprites_SprArrow_pattern equ ram_start+28
+start:
+  movea.l #0x0, SP
+
+0x0202: 2e7c movea.l #0x0, a7                        
+        0000
+        0000
+
+
+  ; Setup registers used to talk to VDP
+  movea.l #VDP_DATA, a0
+
+0x0208: 207c movea.l #0xc00000, a0                   
+        00c0
+        0000
+
+  movea.l #VDP_CTRL, a1
+
+0x020e: 227c movea.l #0xc00004, a1                   
+        00c0
+        0004
+
+
+  ; During initialization:
+  ; d0 = 0
+  ; d1 = data movement
+  ; d2 = counter
+  eor.l d0, d0
+
+0x0214: b180 eor.l d0, d0                            
+
+
+  ; Initialize TMSS
+  movea.l #HW_VERSION, a2
+
+0x0216: 247c movea.l #0xa10001, a2                   
+        00a1
+        0001
+
+  movea.l #TMSS_REG, a3
+
+0x021c: 267c movea.l #0xa14000, a3                   
+        00a1
+        4000
+
+  move.b (a2), d1           ; A10001 test the hardware version
+
+0x0222: 1212 move.b (a2), d1                         
+
+  andi.b #0x0f, d1
+
+0x0224: 0201 andi.b #0x0f, d1                        
+        000f
+
+  beq.b start_init_tmss     ; branch if no TMSS
+
+0x0228: 6706 beq.s 0x230 (6)                         
+
+  move.l #0x53454741, (a3)  ; A14000 disable TMSS
+
+0x022a: 26bc move.l #0x53454741, (a3)                
+        5345
+        4741
+
+start_init_tmss:
+  move.w (a1), d1    ; C00004 read VDP status (interrupt acknowledge?)
+
+0x0230: 3211 move.w (a1), d1                         
+
+
+  ; Initialize video
+  movea.l #vdp_reg_init_table, a2
+
+0x0232: 247c movea.l #0x33f0, a2                     
+        0000
+        33f0
+
+  move.w #0x8000, d1
+
+0x0238: 323c move.w #0x8000, d1                      
+        8000
+
+  moveq #24-1, d2   ; length of video initialization block
+
+0x023c: 7417 moveq #23, d2                           
+
+start_video_init:
+  move.b (a2)+, d1  ; get next video control byte
+
+0x023e: 121a move.b (a2)+, d1                        
+
+  move.w d1, (a1)   ; C00004 send write register command to VDP
+
+0x0240: 3281 move.w d1, (a1)                         
+
+  add.w #0x100, d1  ; point to next VDP register
+
+0x0242: 0641 addi.w #0x0100, d1                      
+        0100
+
+  dbra d2, start_video_init  ; loop for rest of block
+
+0x0246: 51ca dbra d2, 0x23e (-10)                    
+        fff6
+
+
+  ; DMA is now set up for 65535-byte fill of VRAM
+  move.l #0x40000080, (a1)  ; C00004 = VRAM write to 0x0000
+
+0x024a: 22bc move.l #0x40000080, (a1)                
+        4000
+        0080
+
+  move.w d0, (a0)      ; C00000 = write zero to VRAM (starts DMA fill)
+
+0x0250: 3080 move.w d0, (a0)                         
+
+  ; Wait on busy VDP
+start_wait_dma:
+  move.w (a1), d1      ; C00004 read VDP status
+
+0x0252: 3211 move.w (a1), d1                         
+
+  btst #1, d1        ; test DMA busy flag
+
+0x0254: 0801 btst #1, d1                             
+        0001
+
+  bne.s start_wait_dma ; loop while DMA busy
+
+0x0258: 66f8 bne.s 0x252 (-8)                        
+
+
+  ; initialize CRAM
+  move.l #0x81048f02, (a1) ; C00004 reg 1 = 0x04, reg 15 = 0x02: blank, auto-increment=2
+
+0x025a: 22bc move.l #0x81048f02, (a1)                
+        8104
+        8f02
+
+  move.l #0xc0000000, (a1) ; C00004 write CRAM address 0x0000
+
+0x0260: 22bc move.l #0xc0000000, (a1)                
+        c000
+        0000
+
+  moveq #32-1, d2          ; loop for 32 CRAM registers
+
+0x0266: 741f moveq #31, d2                           
+
+start_init_cram:
+  move.l d0, (a0)          ; C00000 clear CRAM register
+
+0x0268: 2080 move.l d0, (a0)                         
+
+  dbra d2, start_init_cram
+
+0x026a: 51ca dbra d2, 0x268 (-4)                     
+        fffc
+
+
+  ; Initialize VSRAM
+  move.l #0x40000010, (a1) ; C00004 VSRAM write address 0x0000
+
+0x026e: 22bc move.l #0x40000010, (a1)                
+        4000
+        0010
+
+  moveq #20-1, d2          ; loop for 20 VSRAM registers
+
+0x0274: 7413 moveq #19, d2                           
+
+start_init_vsram:
+  move.l d0, (a0)          ; C00000 clear VSRAM register
+
+0x0276: 2080 move.l d0, (a0)                         
+
+  dbra d2, start_init_vsram
+
+0x0278: 51ca dbra d2, 0x276 (-4)                     
+        fffc
+
+
+  ; Initialize PSG
+  moveq #4-1, d2             ; loop for 4 PSG registers
+
+0x027c: 7403 moveq #3, d2                            
+
+  movea.l #psg_reg_init_table, a2
+
+0x027e: 247c movea.l #0x3408, a2                     
+        0000
+        3408
+
+start_init_psg:
+  move.b (a2)+, (0x0011, a0) ; C00011 copy PSG initialization commands
+
+0x0284: 115a move.b (a2)+, (17,a0)                   
+        0011
+
+  dbra d2, start_init_psg
+
+0x0288: 51ca dbra d2, 0x284 (-6)                     
+        fffa
+
+
+  ; Unblank display
+  move.w #0x8144, (a1)   ; C00004 reg 1 = 0x44 unblank display
+
+0x028c: 32bc move.w #0x8144, (a1)                    
+        8144
+
+
+  ;; Setup heap and static initializers
+  movea.l #ram_start+32, a5
+
+0x0290: 2a7c movea.l #0xff0020, a5                   
+        00ff
+        0020
+
+  move.l #_res_images_ImgJavaGrinder_pattern, (res_images_ImgJavaGrinder_pattern)
+
+0x0296: 23fc move.l #0x6b4, (0xff0010)               
+        0000
+        06b4
+        00ff
+        0010
+
+  move.l #_res_images_ImgJavaGrinder_image, (res_images_ImgJavaGrinder_image)
+
+0x02a0: 23fc move.l #0x28f8, (0xff0008)              
+        0000
+        28f8
+        00ff
+        0008
+
+  move.l #_res_images_ImgJavaGrinder_palette, (res_images_ImgJavaGrinder_palette)
+
+0x02aa: 23fc move.l #0x31bc, (0xff000c)              
+        0000
+        31bc
+        00ff
+        000c
+
+  move.l #_res_sprites_SprArrow_pattern, (res_sprites_SprArrow_pattern)
+
+0x02b4: 23fc move.l #0x31e0, (0xff001c)              
+        0000
+        31e0
+        00ff
+        001c
+
+  move.l #_res_sprites_SprArrow_palette, (res_sprites_SprArrow_palette)
+
+0x02be: 23fc move.l #0x32e4, (0xff0018)              
+        0000
+        32e4
+        00ff
+        0018
+
+  move.l #_res_sprites_SprArrow_clearPattern, (res_sprites_SprArrow_clearPattern)
+
+0x02c8: 23fc move.l #0x32f0, (0xff0014)              
+        0000
+        32f0
+        00ff
+        0014
+
+
+main:
+  link a6, #-0x24
+
+0x02d2: 4e56 link.w a6, #-36                         
+        ffdc
+
+  jsr (_load_fonts).l
+
+0x02d6: 4eb9 jsr (0x340c)                            
+        0000
+        340c
+
+  jsr (_clear_text).l
+
+0x02dc: 4eb9 jsr (0x3784)                            
+        0000
+        3784
+
+  moveq #0, d0
+
+0x02e2: 7000 moveq #0, d0                            
+
+  move.l d0, (-8,a6)
+
+0x02e4: 2d40 move.l d0, (-8,a6)                      
+        fff8
+
+  moveq #0, d0
+
+0x02e8: 7000 moveq #0, d0                            
+
+  move.l d0, (-12,a6)
+
+0x02ea: 2d40 move.l d0, (-12,a6)                     
+        fff4
+
+  moveq #1, d0
+
+0x02ee: 7001 moveq #1, d0                            
+
+  move.l d0, (-16,a6)
+
+0x02f0: 2d40 move.l d0, (-16,a6)                     
+        fff0
+
+  moveq #1, d0
+
+0x02f4: 7001 moveq #1, d0                            
+
+  move.l d0, (-20,a6)
+
+0x02f6: 2d40 move.l d0, (-20,a6)                     
+        ffec
+
+  moveq #0, d0
+
+0x02fa: 7000 moveq #0, d0                            
+
+  move.l d0, (-24,a6)
+
+0x02fc: 2d40 move.l d0, (-24,a6)                     
+        ffe8
+
+  move.l #0x10e, d0
+
+0x0300: 203c move.l #0x10e, d0                       
+        0000
+        010e
+
+  move.l d0, (-28,a6)
+
+0x0306: 2d40 move.l d0, (-28,a6)                     
+        ffe4
+
+  move.l #0xe6, d0
+
+0x030a: 203c move.l #0xe6, d0                        
+        0000
+        00e6
+
+  move.l d0, (-32,a6)
+
+0x0310: 2d40 move.l d0, (-32,a6)                     
+        ffe0
+
+  ;; invoke_static_method() name=res_images_ImgJavaGrinder_draw params=0 is_void=1
+  jsr res_images_ImgJavaGrinder_draw
+
+0x0314: 4eba jsr (676,PC)                            
+        02a4
+
+  ;; invoke_static_method() name=res_sprites_SprArrow_draw params=0 is_void=1
+  jsr res_sprites_SprArrow_draw
+
+0x0318: 4eba jsr (724,PC)                            
+        02d4
+
+main_34:
+  move.l (-16,a6), d0
+
+0x031c: 202e move.l (-16,a6), d0                     
+        fff0
+
+  cmp.l #0, d0
+
+0x0320: b0bc cmp.l #0x0, d0                          
+        0000
+        0000
+
+  beq.w main_316  ; distance=139
+
+0x0326: 6700 beq.w 0x5b6 (652)                       
+        028c
+
+  ;; Read from joypad 1
+  move.b #0x40, (0xa10009) ; Set direction
+
+0x032a: 13fc move.b #0x40, (0xa10009)                
+        0040
+        00a1
+        0009
+
+  move.b #0x40, (0xa10003) ; TH=1
+
+0x0332: 13fc move.b #0x40, (0xa10003)                
+        0040
+        00a1
+        0003
+
+  move.b (0xa10003), d0
+
+0x033a: 1039 move.b (0xa10003), d0                   
+        00a1
+        0003
+
+  and.l #0xff, d0
+
+0x0340: c0bc and.l #0xff, d0                         
+        0000
+        00ff
+
+  move.b #0x00, (0xa10003) ; TH=0
+
+0x0346: 13fc move.b #0x0, (0xa10003)                 
+        0000
+        00a1
+        0003
+
+  move.b (0xa10003), d5
+
+0x034e: 1a39 move.b (0xa10003), d5                   
+        00a1
+        0003
+
+  and.l #0xff, d5
+
+0x0354: cabc and.l #0xff, d5                         
+        0000
+        00ff
+
+  lsl.l #8, d5
+
+0x035a: e18d lsl.l #8, d5                            
+
+  or.l d5, d0
+
+0x035c: 8085 or.l d5, d0                             
+
+  eori.w #0xffff, d0
+
+0x035e: 0a40 eori.w #0xffff, d0                      
+        ffff
+
+  move.l d0, (-8,a6)
+
+0x0362: 2d40 move.l d0, (-8,a6)                      
+        fff8
+
+  move.l (-12,a6), d0
+
+0x0366: 202e move.l (-12,a6), d0                     
+        fff4
+
+  cmp.l #0, d0
+
+0x036a: b0bc cmp.l #0x0, d0                          
+        0000
+        0000
+
+  bne.w main_299  ; distance=126
+
+0x0370: 6600 bne.w 0x58e (538)                       
+        021a
+
+  moveq #0, d0
+
+0x0374: 7000 moveq #0, d0                            
+
+  move.l d0, (-36,a6)
+
+0x0376: 2d40 move.l d0, (-36,a6)                     
+        ffdc
+
+main_49:
+  move.l (-36,a6), d0
+
+0x037a: 202e move.l (-36,a6), d0                     
+        ffdc
+
+  move.l #0xf000, d1
+
+0x037e: 223c move.l #0xf000, d1                      
+        0000
+        f000
+
+  cmp.l d1, d0
+
+0x0384: b081 cmp.l d1, d0                            
+
+  bgt.w main_296  ; distance=120
+
+0x0386: 6e00 bgt.w 0x58a (512)                       
+        0200
+
+  move.l (-8,a6), d0
+
+0x038a: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x038e: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #129, d1
+
+0x0392: 0681 addi.l #0x00000081, d1                  
+        0000
+        0081
+
+  cmp.l d1, d0
+
+0x0398: b081 cmp.l d1, d0                            
+
+  bne.s main_90  ; distance=13
+
+0x039a: 663e bne.s 0x3da (62)                        
+
+  move.l (-32,a6), d0
+
+0x039c: 202e move.l (-32,a6), d0                     
+        ffe0
+
+  moveq #127, d1
+
+0x03a0: 727f moveq #127, d1                          
+
+  cmp.l d1, d0
+
+0x03a2: b081 cmp.l d1, d0                            
+
+  ble.s main_90  ; distance=10
+
+0x03a4: 6f34 ble.s 0x3da (52)                        
+
+  moveq #0, d0
+
+0x03a6: 7000 moveq #0, d0                            
+
+  move.l (-28,a6), d1
+
+0x03a8: 222e move.l (-28,a6), d1                     
+        ffe4
+
+  move.l (-32,a6), d2
+
+0x03ac: 242e move.l (-32,a6), d2                     
+        ffe0
+
+  move.l (-20,a6), d3
+
+0x03b0: 262e move.l (-20,a6), d3                     
+        ffec
+
+  sub.l d3, d2
+
+0x03b4: 9483 sub.l d3, d2                            
+
+  ;; dup
+  move.l d2, d3
+
+0x03b6: 2602 move.l d2, d3                           
+
+  move.l d3, (-32,a6)
+
+0x03b8: 2d43 move.l d3, (-32,a6)                     
+        ffe0
+
+  ;; setSpritePosition()
+  asl.w #3, d0
+
+0x03bc: e740 asl.w #3, d0                            
+
+  swap d0
+
+0x03be: 4840 swap d0                                 
+
+  move.l #0x58000003, d5
+
+0x03c0: 2a3c move.l #0x58000003, d5                  
+        5800
+        0003
+
+  add.l d0, d5
+
+0x03c6: da80 add.l d0, d5                            
+
+  move.l d5, (a1)
+
+0x03c8: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x03ca: 3082 move.w d2, (a0)                         
+
+  add.l #0x00060000, d5
+
+0x03cc: 0685 addi.l #0x00060000, d5                  
+        0006
+        0000
+
+  move.l d5, (a1)
+
+0x03d2: 2285 move.l d5, (a1)                         
+
+  move.w d1, (a0)
+
+0x03d4: 3081 move.w d1, (a0)                         
+
+  bra.w main_296  ; distance=103
+
+0x03d6: 6000 bra.w 0x588 (432)                       
+        01b0
+
+main_90:
+  move.l (-8,a6), d0
+
+0x03da: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x03de: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #130, d1
+
+0x03e2: 0681 addi.l #0x00000082, d1                  
+        0000
+        0082
+
+  cmp.l d1, d0
+
+0x03e8: b081 cmp.l d1, d0                            
+
+  bne.s main_125  ; distance=13
+
+0x03ea: 6642 bne.s 0x42e (66)                        
+
+  move.l (-32,a6), d0
+
+0x03ec: 202e move.l (-32,a6), d0                     
+        ffe0
+
+  move.l #0x160, d1
+
+0x03f0: 223c move.l #0x160, d1                       
+        0000
+        0160
+
+  cmp.l d1, d0
+
+0x03f6: b081 cmp.l d1, d0                            
+
+  bge.s main_125  ; distance=10
+
+0x03f8: 6c34 bge.s 0x42e (52)                        
+
+  moveq #0, d0
+
+0x03fa: 7000 moveq #0, d0                            
+
+  move.l (-28,a6), d1
+
+0x03fc: 222e move.l (-28,a6), d1                     
+        ffe4
+
+  move.l (-32,a6), d2
+
+0x0400: 242e move.l (-32,a6), d2                     
+        ffe0
+
+  move.l (-20,a6), d3
+
+0x0404: 262e move.l (-20,a6), d3                     
+        ffec
+
+  add.l d3, d2
+
+0x0408: d483 add.l d3, d2                            
+
+  ;; dup
+  move.l d2, d3
+
+0x040a: 2602 move.l d2, d3                           
+
+  move.l d3, (-32,a6)
+
+0x040c: 2d43 move.l d3, (-32,a6)                     
+        ffe0
+
+  ;; setSpritePosition()
+  asl.w #3, d0
+
+0x0410: e740 asl.w #3, d0                            
+
+  swap d0
+
+0x0412: 4840 swap d0                                 
+
+  move.l #0x58000003, d5
+
+0x0414: 2a3c move.l #0x58000003, d5                  
+        5800
+        0003
+
+  add.l d0, d5
+
+0x041a: da80 add.l d0, d5                            
+
+  move.l d5, (a1)
+
+0x041c: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x041e: 3082 move.w d2, (a0)                         
+
+  add.l #0x00060000, d5
+
+0x0420: 0685 addi.l #0x00060000, d5                  
+        0006
+        0000
+
+  move.l d5, (a1)
+
+0x0426: 2285 move.l d5, (a1)                         
+
+  move.w d1, (a0)
+
+0x0428: 3081 move.w d1, (a0)                         
+
+  bra.w main_296  ; distance=86
+
+0x042a: 6000 bra.w 0x588 (348)                       
+        015c
+
+main_125:
+  move.l (-8,a6), d0
+
+0x042e: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x0432: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #132, d1
+
+0x0436: 0681 addi.l #0x00000084, d1                  
+        0000
+        0084
+
+  cmp.l d1, d0
+
+0x043c: b081 cmp.l d1, d0                            
+
+  bne.s main_159  ; distance=13
+
+0x043e: 663e bne.s 0x47e (62)                        
+
+  move.l (-28,a6), d0
+
+0x0440: 202e move.l (-28,a6), d0                     
+        ffe4
+
+  moveq #126, d1
+
+0x0444: 727e moveq #126, d1                          
+
+  cmp.l d1, d0
+
+0x0446: b081 cmp.l d1, d0                            
+
+  ble.s main_159  ; distance=10
+
+0x0448: 6f34 ble.s 0x47e (52)                        
+
+  moveq #0, d0
+
+0x044a: 7000 moveq #0, d0                            
+
+  move.l (-28,a6), d1
+
+0x044c: 222e move.l (-28,a6), d1                     
+        ffe4
+
+  move.l (-20,a6), d2
+
+0x0450: 242e move.l (-20,a6), d2                     
+        ffec
+
+  sub.l d2, d1
+
+0x0454: 9282 sub.l d2, d1                            
+
+  ;; dup
+  move.l d1, d2
+
+0x0456: 2401 move.l d1, d2                           
+
+  move.l d2, (-28,a6)
+
+0x0458: 2d42 move.l d2, (-28,a6)                     
+        ffe4
+
+  move.l (-32,a6), d2
+
+0x045c: 242e move.l (-32,a6), d2                     
+        ffe0
+
+  ;; setSpritePosition()
+  asl.w #3, d0
+
+0x0460: e740 asl.w #3, d0                            
+
+  swap d0
+
+0x0462: 4840 swap d0                                 
+
+  move.l #0x58000003, d5
+
+0x0464: 2a3c move.l #0x58000003, d5                  
+        5800
+        0003
+
+  add.l d0, d5
+
+0x046a: da80 add.l d0, d5                            
+
+  move.l d5, (a1)
+
+0x046c: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x046e: 3082 move.w d2, (a0)                         
+
+  add.l #0x00060000, d5
+
+0x0470: 0685 addi.l #0x00060000, d5                  
+        0006
+        0000
+
+  move.l d5, (a1)
+
+0x0476: 2285 move.l d5, (a1)                         
+
+  move.w d1, (a0)
+
+0x0478: 3081 move.w d1, (a0)                         
+
+  bra.w main_296  ; distance=69
+
+0x047a: 6000 bra.w 0x588 (268)                       
+        010c
+
+main_159:
+  move.l (-8,a6), d0
+
+0x047e: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x0482: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #136, d1
+
+0x0486: 0681 addi.l #0x00000088, d1                  
+        0000
+        0088
+
+  cmp.l d1, d0
+
+0x048c: b081 cmp.l d1, d0                            
+
+  bne.s main_194  ; distance=13
+
+0x048e: 6642 bne.s 0x4d2 (66)                        
+
+  move.l (-28,a6), d0
+
+0x0490: 202e move.l (-28,a6), d0                     
+        ffe4
+
+  move.l #0x1c0, d1
+
+0x0494: 223c move.l #0x1c0, d1                       
+        0000
+        01c0
+
+  cmp.l d1, d0
+
+0x049a: b081 cmp.l d1, d0                            
+
+  bge.s main_194  ; distance=10
+
+0x049c: 6c34 bge.s 0x4d2 (52)                        
+
+  moveq #0, d0
+
+0x049e: 7000 moveq #0, d0                            
+
+  move.l (-28,a6), d1
+
+0x04a0: 222e move.l (-28,a6), d1                     
+        ffe4
+
+  move.l (-20,a6), d2
+
+0x04a4: 242e move.l (-20,a6), d2                     
+        ffec
+
+  add.l d2, d1
+
+0x04a8: d282 add.l d2, d1                            
+
+  ;; dup
+  move.l d1, d2
+
+0x04aa: 2401 move.l d1, d2                           
+
+  move.l d2, (-28,a6)
+
+0x04ac: 2d42 move.l d2, (-28,a6)                     
+        ffe4
+
+  move.l (-32,a6), d2
+
+0x04b0: 242e move.l (-32,a6), d2                     
+        ffe0
+
+  ;; setSpritePosition()
+  asl.w #3, d0
+
+0x04b4: e740 asl.w #3, d0                            
+
+  swap d0
+
+0x04b6: 4840 swap d0                                 
+
+  move.l #0x58000003, d5
+
+0x04b8: 2a3c move.l #0x58000003, d5                  
+        5800
+        0003
+
+  add.l d0, d5
+
+0x04be: da80 add.l d0, d5                            
+
+  move.l d5, (a1)
+
+0x04c0: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x04c2: 3082 move.w d2, (a0)                         
+
+  add.l #0x00060000, d5
+
+0x04c4: 0685 addi.l #0x00060000, d5                  
+        0006
+        0000
+
+  move.l d5, (a1)
+
+0x04ca: 2285 move.l d5, (a1)                         
+
+  move.w d1, (a0)
+
+0x04cc: 3081 move.w d1, (a0)                         
+
+  bra.w main_296  ; distance=52
+
+0x04ce: 6000 bra.w 0x588 (184)                       
+        00b8
+
+main_194:
+  move.l (-8,a6), d0
+
+0x04d2: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x04d6: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #53376, d1
+
+0x04da: 0681 addi.l #0x0000d080, d1                  
+        0000
+        d080
+
+  cmp.l d1, d0
+
+0x04e0: b081 cmp.l d1, d0                            
+
+  bne.s main_208  ; distance=4
+
+0x04e2: 660a bne.s 0x4ee (10)                        
+
+  moveq #1, d0
+
+0x04e4: 7001 moveq #1, d0                            
+
+  move.l d0, (-12,a6)
+
+0x04e6: 2d40 move.l d0, (-12,a6)                     
+        fff4
+
+  bra.w main_296  ; distance=44
+
+0x04ea: 6000 bra.w 0x588 (156)                       
+        009c
+
+main_208:
+  move.l (-8,a6), d0
+
+0x04ee: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x04f2: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #144, d1
+
+0x04f6: 0681 addi.l #0x00000090, d1                  
+        0000
+        0090
+
+  cmp.l d1, d0
+
+0x04fc: b081 cmp.l d1, d0                            
+
+  bne.s main_226  ; distance=5
+
+0x04fe: 660e bne.s 0x50e (14)                        
+
+  ;; invoke_static_method() name=res_sprites_SprArrow_setTo0 params=0 is_void=1
+  jsr res_sprites_SprArrow_setTo0
+
+0x0500: 4eba jsr (368,PC)                            
+        0170
+
+  moveq #1, d0
+
+0x0504: 7001 moveq #1, d0                            
+
+  move.l d0, (-12,a6)
+
+0x0506: 2d40 move.l d0, (-12,a6)                     
+        fff4
+
+  bra.w main_296  ; distance=35
+
+0x050a: 6000 bra.w 0x588 (124)                       
+        007c
+
+main_226:
+  move.l (-8,a6), d0
+
+0x050e: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x0512: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #160, d1
+
+0x0516: 0681 addi.l #0x000000a0, d1                  
+        0000
+        00a0
+
+  cmp.l d1, d0
+
+0x051c: b081 cmp.l d1, d0                            
+
+  bne.s main_241  ; distance=4
+
+0x051e: 660a bne.s 0x52a (10)                        
+
+  moveq #1, d0
+
+0x0520: 7001 moveq #1, d0                            
+
+  move.l d0, (-12,a6)
+
+0x0522: 2d40 move.l d0, (-12,a6)                     
+        fff4
+
+  bra.w main_296  ; distance=27
+
+0x0526: 6000 bra.w 0x588 (96)                        
+        0060
+
+main_241:
+  move.l (-8,a6), d0
+
+0x052a: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l (-36,a6), d1
+
+0x052e: 222e move.l (-36,a6), d1                     
+        ffdc
+
+  add.l #57472, d1
+
+0x0532: 0681 addi.l #0x0000e080, d1                  
+        0000
+        e080
+
+  cmp.l d1, d0
+
+0x0538: b081 cmp.l d1, d0                            
+
+  bne.w main_287  ; distance=20
+
+0x053a: 6600 bne.w 0x57e (64)                        
+        0040
+
+  move.l (-24,a6), d0
+
+0x053e: 202e move.l (-24,a6), d0                     
+        ffe8
+
+  cmp.l #0, d0
+
+0x0542: b0bc cmp.l #0x0, d0                          
+        0000
+        0000
+
+  bne.s main_261  ; distance=4
+
+0x0548: 6608 bne.s 0x552 (8)                         
+
+  moveq #1, d0
+
+0x054a: 7001 moveq #1, d0                            
+
+  move.l d0, (-24,a6)
+
+0x054c: 2d40 move.l d0, (-24,a6)                     
+        ffe8
+
+  bra.s main_282  ; distance=12
+
+0x0550: 6022 bra.s 0x574 (34)                        
+
+main_261:
+  move.l (-24,a6), d0
+
+0x0552: 202e move.l (-24,a6), d0                     
+        ffe8
+
+  moveq #1, d1
+
+0x0556: 7201 moveq #1, d1                            
+
+  cmp.l d1, d0
+
+0x0558: b081 cmp.l d1, d0                            
+
+  bne.s main_273  ; distance=4
+
+0x055a: 6608 bne.s 0x564 (8)                         
+
+  moveq #2, d0
+
+0x055c: 7002 moveq #2, d0                            
+
+  move.l d0, (-24,a6)
+
+0x055e: 2d40 move.l d0, (-24,a6)                     
+        ffe8
+
+  bra.s main_282  ; distance=6
+
+0x0562: 6010 bra.s 0x574 (16)                        
+
+main_273:
+  move.l (-24,a6), d0
+
+0x0564: 202e move.l (-24,a6), d0                     
+        ffe8
+
+  moveq #3, d1
+
+0x0568: 7203 moveq #3, d1                            
+
+  cmp.l d1, d0
+
+0x056a: b081 cmp.l d1, d0                            
+
+  bne.s main_282  ; distance=3
+
+0x056c: 6606 bne.s 0x574 (6)                         
+
+  moveq #0, d0
+
+0x056e: 7000 moveq #0, d0                            
+
+  move.l d0, (-24,a6)
+
+0x0570: 2d40 move.l d0, (-24,a6)                     
+        ffe8
+
+main_282:
+  moveq #1, d0
+
+0x0574: 7001 moveq #1, d0                            
+
+  move.l d0, (-12,a6)
+
+0x0576: 2d40 move.l d0, (-12,a6)                     
+        fff4
+
+  bra.s main_296  ; distance=3
+
+0x057a: 600c bra.s 0x588 (12)                        
+
+main_287:
+  add.l #256, (-36,a6)
+
+0x057c: 06ae addi.l #0x00000100, (-36,a6)            
+        0000
+        0100
+        ffdc
+
+  bra.w main_49  ; distance=121
+
+0x0584: 6000 bra.w 0x37a (-524)                      
+        fdf4
+
+main_296:
+  bra.w main_34  ; distance=130
+
+0x0588: 6000 bra.w 0x31c (-622)                      
+        fd92
+
+main_299:
+  move.l (-8,a6), d0
+
+0x058c: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l #0xcc80, d1
+
+0x0590: 223c move.l #0xcc80, d1                      
+        0000
+        cc80
+
+  cmp.l d1, d0
+
+0x0596: b081 cmp.l d1, d0                            
+
+  beq.s main_311  ; distance=4
+
+0x0598: 6710 beq.s 0x5aa (16)                        
+
+  move.l (-8,a6), d0
+
+0x059a: 202e move.l (-8,a6), d0                      
+        fff8
+
+  move.l #0xc080, d1
+
+0x059e: 223c move.l #0xc080, d1                      
+        0000
+        c080
+
+  cmp.l d1, d0
+
+0x05a4: b081 cmp.l d1, d0                            
+
+  bne.w main_34  ; distance=136
+
+0x05a6: 6600 bne.w 0x31e (-652)                      
+        fd74
+
+main_311:
+  moveq #0, d0
+
+0x05aa: 7000 moveq #0, d0                            
+
+  move.l d0, (-12,a6)
+
+0x05ac: 2d40 move.l d0, (-12,a6)                     
+        fff4
+
+  bra.w main_34  ; distance=139
+
+0x05b0: 6000 bra.w 0x31c (-662)                      
+        fd6a
+
+main_316:
+  unlk a6
+
+0x05b4: 4e5e unlk a6                                 
+
+  rts
+
+0x05b6: 4e75 rts                                     
+
+
+PlayBackgroundMusic:
+  rts
+
+0x05b8: 4e75 rts                                     
+
+
+res_images_ImgJavaGrinder_draw:
+  movea.l #res_images_ImgJavaGrinder_palette, a2
+
+0x05ba: 247c movea.l #0xff000c, a2                   
+        00ff
+        000c
+
+  move.l (a2), d0
+
+0x05c0: 2012 move.l (a2), d0                         
+
+  movea.l d0, a3
+
+0x05c2: 2640 movea.l d0, a3                          
+
+  jsr (_set_palette_colors).l
+
+0x05c4: 4eb9 jsr (0x37ea)                            
+        0000
+        37ea
+
+  movea.l #res_images_ImgJavaGrinder_pattern, a2
+
+0x05ca: 247c movea.l #0xff0010, a2                   
+        00ff
+        0010
+
+  move.l (a2), d0
+
+0x05d0: 2012 move.l (a2), d0                         
+
+  movea.l d0, a3
+
+0x05d2: 2640 movea.l d0, a3                          
+
+  moveq.l #0, d7
+
+0x05d4: 7e00 moveq #0, d7                            
+
+  jsr (_set_pattern_table).l
+
+0x05d6: 4eb9 jsr (0x379c)                            
+        0000
+        379c
+
+  movea.l #res_images_ImgJavaGrinder_image, a2
+
+0x05dc: 247c movea.l #0xff0008, a2                   
+        00ff
+        0008
+
+  move.l (a2), d0
+
+0x05e2: 2012 move.l (a2), d0                         
+
+  movea.l d0, a3
+
+0x05e4: 2640 movea.l d0, a3                          
+
+  jsr (_set_image_data).l
+
+0x05e6: 4eb9 jsr (0x37c2)                            
+        0000
+        37c2
+
+  rts
+
+0x05ec: 4e75 rts                                     
+
+
+res_sprites_SprArrow_draw:
+  moveq #16, d0
+
+0x05ee: 7010 moveq #16, d0                           
+
+  movea.l #res_sprites_SprArrow_palette, a2
+
+0x05f0: 247c movea.l #0xff0018, a2                   
+        00ff
+        0018
+
+  move.l (a2), d1
+
+0x05f6: 2212 move.l (a2), d1                         
+
+  movea.l d1, a3
+
+0x05f8: 2641 movea.l d1, a3                          
+
+  jsr (_set_palette_colors_at_index).l
+
+0x05fa: 4eb9 jsr (0x37fc)                            
+        0000
+        37fc
+
+  move.l #0x4a0, d1
+
+0x0600: 223c move.l #0x4a0, d1                       
+        0000
+        04a0
+
+  movea.l #res_sprites_SprArrow_pattern, a2
+
+0x0606: 247c movea.l #0xff001c, a2                   
+        00ff
+        001c
+
+  move.l (a2), d2
+
+0x060c: 2412 move.l (a2), d2                         
+
+  movea.l d2, a3
+
+0x060e: 2642 movea.l d2, a3                          
+
+  move.l d1, d7
+
+0x0610: 2e01 move.l d1, d7                           
+
+  jsr (_set_pattern_table).l
+
+0x0612: 4eb9 jsr (0x379c)                            
+        0000
+        379c
+
+  moveq #0, d1
+
+0x0618: 7200 moveq #0, d1                            
+
+  move.l #0x10e, d2
+
+0x061a: 243c move.l #0x10e, d2                       
+        0000
+        010e
+
+  move.l #0xe6, d3
+
+0x0620: 263c move.l #0xe6, d3                        
+        0000
+        00e6
+
+  ;; setSpritePosition()
+  asl.w #3, d1
+
+0x0626: e741 asl.w #3, d1                            
+
+  swap d1
+
+0x0628: 4841 swap d1                                 
+
+  move.l #0x58000003, d5
+
+0x062a: 2a3c move.l #0x58000003, d5                  
+        5800
+        0003
+
+  add.l d1, d5
+
+0x0630: da81 add.l d1, d5                            
+
+  move.l d5, (a1)
+
+0x0632: 2285 move.l d5, (a1)                         
+
+  move.w d3, (a0)
+
+0x0634: 3083 move.w d3, (a0)                         
+
+  add.l #0x00060000, d5
+
+0x0636: 0685 addi.l #0x00060000, d5                  
+        0006
+        0000
+
+  move.l d5, (a1)
+
+0x063c: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x063e: 3082 move.w d2, (a0)                         
+
+  moveq #0, d1
+
+0x0640: 7200 moveq #0, d1                            
+
+  move.l #0x701, d2
+
+0x0642: 243c move.l #0x701, d2                       
+        0000
+        0701
+
+  ;; setSpriteConfig1()
+  asl.w #3, d1
+
+0x0648: e741 asl.w #3, d1                            
+
+  swap d1
+
+0x064a: 4841 swap d1                                 
+
+  move.l #0x58020003, d5
+
+0x064c: 2a3c move.l #0x58020003, d5                  
+        5802
+        0003
+
+  add.l d1, d5
+
+0x0652: da81 add.l d1, d5                            
+
+  move.l d5, (a1)
+
+0x0654: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x0656: 3082 move.w d2, (a0)                         
+
+  moveq #0, d1
+
+0x0658: 7200 moveq #0, d1                            
+
+  move.l #0x24a0, d2
+
+0x065a: 243c move.l #0x24a0, d2                      
+        0000
+        24a0
+
+  ;; setSpriteConfig2()
+  asl.w #3, d1
+
+0x0660: e741 asl.w #3, d1                            
+
+  swap d1
+
+0x0662: 4841 swap d1                                 
+
+  move.l #0x58040003, d5
+
+0x0664: 2a3c move.l #0x58040003, d5                  
+        5804
+        0003
+
+  add.l d1, d5
+
+0x066a: da81 add.l d1, d5                            
+
+  move.l d5, (a1)
+
+0x066c: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x066e: 3082 move.w d2, (a0)                         
+
+  rts
+
+0x0670: 4e75 rts                                     
+
+
+res_sprites_SprArrow_setTo0:
+  moveq #0, d0
+
+0x0672: 7000 moveq #0, d0                            
+
+  moveq #0, d1
+
+0x0674: 7200 moveq #0, d1                            
+
+  moveq #0, d2
+
+0x0676: 7400 moveq #0, d2                            
+
+  ;; setSpritePosition()
+  asl.w #3, d0
+
+0x0678: e740 asl.w #3, d0                            
+
+  swap d0
+
+0x067a: 4840 swap d0                                 
+
+  move.l #0x58000003, d5
+
+0x067c: 2a3c move.l #0x58000003, d5                  
+        5800
+        0003
+
+  add.l d0, d5
+
+0x0682: da80 add.l d0, d5                            
+
+  move.l d5, (a1)
+
+0x0684: 2285 move.l d5, (a1)                         
+
+  move.w d2, (a0)
+
+0x0686: 3082 move.w d2, (a0)                         
+
+  add.l #0x00060000, d5
+
+0x0688: 0685 addi.l #0x00060000, d5                  
+        0006
+        0000
+
+  move.l d5, (a1)
+
+0x068e: 2285 move.l d5, (a1)                         
+
+  move.w d1, (a0)
+
+0x0690: 3081 move.w d1, (a0)                         
+
+  rts
+
+0x0692: 4e75 rts                                     
+
+
+res_sprites_SprArrow_clear:
+  move.l #0x4a0, d0
+
+0x0694: 203c move.l #0x4a0, d0                       
+        0000
+        04a0
+
+  movea.l #res_sprites_SprArrow_clearPattern, a2
+
+0x069a: 247c movea.l #0xff0014, a2                   
+        00ff
+        0014
+
+  move.l (a2), d1
+
+0x06a0: 2212 move.l (a2), d1                         
+
+  movea.l d1, a3
+
+0x06a2: 2641 movea.l d1, a3                          
+
+  move.l d0, d7
+
+0x06a4: 2e00 move.l d0, d7                           
+
+  jsr (_set_pattern_table).l
+
+0x06a6: 4eb9 jsr (0x379c)                            
+        0000
+        379c
+
+  rts
+
+0x06ac: 4e75 rts                                     
+
+
+.align 32
+  dc32 2192   ; res_images_ImgJavaGrinder_pattern.length
+_res_images_ImgJavaGrinder_pattern:
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0011, 0x0122, 0x3222, 0x2222
+  dc32 0x0000, 0x0000, 0x0000, 0x44444400, 0x22222211, 0x22222222, 0x22222222, 0x21112222
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x10000000, 0x23000000, 0x22000000
+  dc32 0x0000, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222
+  dc32 0x50000, 0x22222200, 0x22222224, 0x22222222, 0x22222222, 0x33132222, 0x1222, 0x0222
+  dc32 0x0000, 0x2222, 0x2222, 0x40002222, 0x20002222, 0x21003313, 0x22000000, 0x22000000
+  dc32 0x0000, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220
+  dc32 0x0000, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200
+  dc32 0x0000, 0x22220000, 0x22220000, 0x22220000, 0x22220000, 0x33330000, 0x0000, 0x0000
+  dc32 0x0333, 0x0222, 0x0222, 0x0222, 0x0222, 0x0222, 0x0222, 0x0222
+  dc32 0x33333333, 0x22222222, 0x22222222, 0x22222222, 0x22222222, 0x22222222, 0x22111112, 0x22000001
+  dc32 0x0000, 0x0000, 0x24000000, 0x22400000, 0x22210000, 0x22221000, 0x22222000, 0x22222300
+  dc32 0x0000, 0x22222, 0x22222, 0x22222, 0x22222, 0x33333, 0x0000, 0x0000
+  dc32 0x33333, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222
+  dc32 0x33333330, 0x22222220, 0x22222222, 0x22222222, 0x22222222, 0x33322222, 0x12222, 0x1222
+  dc32 0x0000, 0x0000, 0x0000, 0x40000000, 0x21000000, 0x22000000, 0x22000000, 0x22000000
+  dc32 0x0000, 0x0002, 0x0002, 0x0002, 0x0002, 0x0002, 0x0002, 0x0002
+  dc32 0x0000, 0x22220000, 0x22220000, 0x22220000, 0x22220000, 0x22220000, 0x22220000, 0x22220000
+  dc32 0x2222, 0x2442, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x40004222, 0x0222, 0x0222, 0x2222, 0x42222, 0x41122222, 0x22222223, 0x22222223
+  dc32 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x25000000, 0x30000000, 0x0000, 0x0000
+  dc32 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222, 0x22222
+  dc32 0x0222, 0x0222, 0x0222, 0x2222, 0x44442222, 0x22222223, 0x22222220, 0x22222221
+  dc32 0x22000000, 0x22005505, 0x20002222, 0x20002222, 0x50002222, 0x2222, 0x2222, 0x30002222
+  dc32 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220
+  dc32 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200
+  dc32 0x0000, 0x0000, 0x22220000, 0x22220000, 0x22220000, 0x22220001, 0x22220002, 0x22220002
+  dc32 0x0000, 0x333333, 0x222222, 0x2222222, 0x42222222, 0x22222322, 0x22223032, 0x22210001
+  dc32 0x0000, 0x30000033, 0x20000022, 0x22000022, 0x22400022, 0x22210022, 0x22220022, 0x22223022
+  dc32 0x0000, 0x33303333, 0x22202222, 0x22222222, 0x22222222, 0x22223222, 0x22230322, 0x22200012
+  dc32 0x0000, 0x33000000, 0x22000000, 0x22000000, 0x22400000, 0x22200000, 0x22200000, 0x22200000
+  dc32 0x0222, 0x0222, 0x0222, 0x0222, 0x0222, 0x0222, 0x0222, 0x0222
+  dc32 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x22000000
+  dc32 0x42222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200, 0x2222200
+  dc32 0x0000, 0x33333, 0x22222, 0x2222222, 0x2222222, 0x12223332, 0x22220003, 0x22220000
+  dc32 0x0000, 0x30000333, 0x20000222, 0x22000222, 0x22400322, 0x22210022, 0x22220022, 0x22220012
+  dc32 0x0000, 0x33000003, 0x22000002, 0x22000002, 0x22000002, 0x22100012, 0x22200022, 0x22200022
+  dc32 0x0000, 0x33033333, 0x22022222, 0x22022222, 0x22022222, 0x22022222, 0x22022222, 0x22022222
+  dc32 0x0000, 0x0033, 0x0022, 0x2222, 0x42222, 0x22222, 0x122223, 0x222220
+  dc32 0x0000, 0x33330000, 0x22220000, 0x22222000, 0x22222400, 0x32222200, 0x3222210, 0x122220
+  dc32 0x0000, 0x33333, 0x22222, 0x222222, 0x4222222, 0x2222333, 0x12223000, 0x22220000
+  dc32 0x0000, 0x33000000, 0x22000000, 0x22200002, 0x22240042, 0x22220022, 0x22221022, 0x22222022
+  dc32 0x0000, 0x33333330, 0x22222220, 0x22222222, 0x22222222, 0x22233222, 0x22300322, 0x22130013
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x40000000, 0x21000000, 0x22000000, 0x31000000
+  dc32 0x0222, 0x0222, 0x0222, 0x0222, 0x4222, 0x41142222, 0x22222223, 0x22222220
+  dc32 0x22000000, 0x22033333, 0x22022222, 0x20022222, 0x20022222, 0x30022222, 0x22222, 0x22222
+  dc32 0x0000, 0x3333, 0x2222, 0x2222, 0x2222, 0x2222, 0x2222, 0x2222
+  dc32 0x0000, 0x333300, 0x222200, 0x222222, 0x222222, 0x222222, 0x222223, 0x222220
+  dc32 0x0000, 0x33333300, 0x22222200, 0x22222200, 0x22222240, 0x52222220, 0x3222220, 0x122220
+  dc32 0x0002, 0x0002, 0x0002, 0x0002, 0x0002, 0x0002, 0x0002, 0x0002
+  dc32 0x22220000, 0x22220000, 0x22220000, 0x22220000, 0x22220004, 0x22220002, 0x22220002, 0x22220003
+  dc32 0x0000, 0x3333333, 0x2222222, 0x22222222, 0x22222222, 0x22233322, 0x22200022, 0x13101322
+  dc32 0x0000, 0x33333, 0x22222, 0x20022222, 0x24032222, 0x22002222, 0x22002222, 0x22001222
+  dc32 0x0000, 0x0333, 0x0222, 0x0222, 0x4222, 0x10002222, 0x20002222, 0x20002222
+  dc32 0x0000, 0x30003333, 0x20002222, 0x20022222, 0x20422222, 0x31222233, 0x2222300, 0x3131313
+  dc32 0x0000, 0x33300000, 0x22200000, 0x22220000, 0x22224000, 0x32222000, 0x2222000, 0x32222000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x22222, 0x22222, 0x52222, 0x2222
+  dc32 0x12222222, 0x4412222, 0x4222, 0x0222, 0x0222, 0x0222, 0x40004222, 0x21112222
+  dc32 0x30000000, 0x20000000, 0x25000000, 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x23000000
+  dc32 0x11112222, 0x4222, 0x0422, 0x0022, 0x0022, 0x0422, 0x4222, 0x11112222
+  dc32 0x23002222, 0x22002222, 0x22502222, 0x22202222, 0x22202222, 0x22202222, 0x22202222, 0x22302222
+  dc32 0x22220032, 0x22220022, 0x22220022, 0x22220022, 0x22220022, 0x22220032, 0x22220002, 0x22220002
+  dc32 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22240004, 0x22221012
+  dc32 0x22222022, 0x22222022, 0x22222022, 0x22222022, 0x22222022, 0x22222022, 0x22225022, 0x22220022
+  dc32 0x22200002, 0x22200002, 0x22200002, 0x22200002, 0x22200002, 0x22200002, 0x22200002, 0x22200002
+  dc32 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22200000, 0x22200000
+  dc32 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x22000000, 0x22000004, 0x22414412, 0x22222222
+  dc32 0x2222203, 0x2222202, 0x2222202, 0x2222202, 0x22222202, 0x22222303, 0x22222000, 0x22222000
+  dc32 0x22223333, 0x22222222, 0x22222222, 0x22222222, 0x22220000, 0x22220000, 0x22220000, 0x22221001
+  dc32 0x22220002, 0x22220002, 0x22220002, 0x22220002, 0x0000, 0x0000, 0x41140000, 0x22220000
+  dc32 0x22200022, 0x22230322, 0x22220222, 0x22220222, 0x22220222, 0x22224222, 0x22222222, 0x32222222
+  dc32 0x21022222, 0x20022222, 0x20022222, 0x20022222, 0x22222, 0x22222, 0x22222, 0x22222
+  dc32 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222220, 0x222224, 0x322222
+  dc32 0x11110, 0x0000, 0x0000, 0x0000, 0x22000, 0x422440, 0x222220, 0x11222230
+  dc32 0x22223333, 0x22222222, 0x22222222, 0x22222222, 0x22220000, 0x22220000, 0x22220000, 0x32221101
+  dc32 0x22222022, 0x22222042, 0x22222004, 0x22222000, 0x0000, 0x0044, 0x41144022, 0x22223022
+  dc32 0x22223330, 0x22222223, 0x42222222, 0x2222222, 0x22222, 0x44033222, 0x22000222, 0x22101222
+  dc32 0x0000, 0x0000, 0x30000000, 0x20000000, 0x22000000, 0x22000000, 0x22000000, 0x23000000
+  dc32 0x22222223, 0x41422222, 0x42222, 0x2222, 0x2222, 0x2222, 0x2222, 0x3222
+  dc32 0x30022222, 0x20022222, 0x20022222, 0x20022222, 0x22022222, 0x22022222, 0x22022222, 0x22022222
+  dc32 0x2222, 0x2222, 0x2222, 0x2222, 0x2222, 0x2222, 0x42222, 0x11122222
+  dc32 0x22220, 0x22220, 0x22220, 0x22220, 0x22220, 0x22220, 0x22220, 0x22220
+  dc32 0x0000, 0x0000, 0x0003, 0x0002, 0x0002, 0x0002, 0x0002, 0x0003
+  dc32 0x0002, 0x0002, 0x33330002, 0x22220002, 0x22220002, 0x22220002, 0x22221442, 0x22222222
+  dc32 0x22220000, 0x22220003, 0x22220032, 0x22220022, 0x22220022, 0x22220022, 0x22220022, 0x22230022
+  dc32 0x33332222, 0x22222222, 0x22224422, 0x22220022, 0x22200022, 0x22300022, 0x22000022, 0x22100122
+  dc32 0x22000222, 0x22000222, 0x22000222, 0x22000222, 0x22000022, 0x22000022, 0x22000022, 0x22000032
+  dc32 0x20032221, 0x23022220, 0x22022220, 0x22022220, 0x22022200, 0x22422200, 0x22222200, 0x22222200
+  dc32 0x33222, 0x322222, 0x3222224, 0x2222200, 0x2222000, 0x2222000, 0x2222000, 0x2222101
+  dc32 0x22222000, 0x22222000, 0x42222000, 0x2222000, 0x2222000, 0x2222000, 0x2222000, 0x12222000
+  dc32 0x3222, 0x0122, 0x0042, 0x0004, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222222, 0x22222221, 0x22222210, 0x44444400, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x30000000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222, 0x22222, 0x22222, 0x44444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222222, 0x22222222, 0x22222221, 0x44444440, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22002222, 0x21002222, 0x10002222, 0x4444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x222220, 0x222220, 0x222220, 0x444440, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x2222200, 0x2222200, 0x2222200, 0x4444400, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22220003, 0x22220000, 0x22220000, 0x44440000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222122, 0x12222222, 0x4122222, 0x44444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22230022, 0x22100022, 0x11000022, 0x0044, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22200002, 0x22200002, 0x22200002, 0x44400004, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22200000, 0x22200000, 0x22200000, 0x44400000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0222, 0x0222, 0x0222, 0x0444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222222, 0x22222222, 0x22222222, 0x44444444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22223000, 0x22110000, 0x14000000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222132, 0x11222222, 0x122222, 0x44444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22230000, 0x22200000, 0x21400000, 0x40000000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x2222223, 0x2222220, 0x1222220, 0x444440, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x32222, 0x2222, 0x4122, 0x0044, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222200, 0x22222100, 0x22211000, 0x44400000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x2222212, 0x1222222, 0x412222, 0x4444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22220022, 0x22210012, 0x21100004, 0x40000000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22212222, 0x22222222, 0x12222214, 0x4444400, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x20000000, 0x10000000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22032222, 0x22002222, 0x22001422, 0x44000044, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222222, 0x22212222, 0x22102222, 0x44004444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22220, 0x22220, 0x22220, 0x44440, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222222, 0x12222222, 0x4122222, 0x44444, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22200022, 0x22100012, 0x14000001, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22213222, 0x22222122, 0x22221022, 0x44440044, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22000002, 0x22300002, 0x22200002, 0x44400004, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222300, 0x22222000, 0x22222000, 0x44444000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x2222212, 0x1222222, 0x122221, 0x44440, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x22222000, 0x12222000, 0x2222000, 0x4444000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0066, 0x0077, 0x8877
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0099, 0x0077, 0x6677, 0x7777
+  dc32 0x7777, 0x87797, 0x777700, 0x777700, 0x99777700, 0x77777700, 0x7777aa00, 0x77770000
+  dc32 0x0000, 0x0000, 0x000a, 0x0077, 0x0077, 0x9977, 0x7777, 0xb6bb7777
+  dc32 0x88a87777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x7777aaaa, 0x77770000, 0x778a0000
+  dc32 0x77bb0000, 0x77000000, 0x99000000, 0x0000, 0x0000, 0x0000, 0x0000, 0xb6bb6b
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x99799900, 0x77777700, 0x7788a800
+  dc32 0x0000, 0x00aa, 0x0077, 0xaa77, 0x7777, 0x7777, 0x977777, 0x777777
+  dc32 0x77777777, 0x77777766, 0x77777700, 0x77999900, 0x77000000, 0x77000000, 0xa0000000, 0x0000
+  dc32 0x77000000, 0x6b0000aa, 0x0077, 0xaa77, 0x7777, 0x7777, 0x797777, 0x777777
+  dc32 0x777777, 0xaa777766, 0x77777700, 0x77779900, 0x77770000, 0x77770000, 0x77000000, 0x77000000
+  dc32 0x77000000, 0x66000000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0xbb777777, 0x77777777, 0x77777766, 0x77777700, 0x777777a8, 0x77777777, 0x77777777, 0x77777777
+  dc32 0xbb777777, 0x77777777, 0x77777777, 0x77777777, 0x99777777, 0x777777, 0x777777, 0x777777
+  dc32 0x88000000, 0x0000, 0x0000, 0x0000, 0xa8000000, 0x77000000, 0x77000000, 0x77000000
+  dc32 0x77777777, 0x88777777, 0x777777, 0x66a677, 0x0077, 0x009b, 0x0000, 0x0000
+  dc32 0x0000, 0xbb000000, 0x77000000, 0x77a60000, 0x77770000, 0xb9778a00, 0x777700, 0x777700
+  dc32 0x777777, 0x887777, 0x7777, 0x7777, 0x7777, 0xb977, 0x0077, 0x0077
+  dc32 0x77000000, 0x77bb0000, 0x77770000, 0x77776a00, 0x77777700, 0x77777700, 0x77777700, 0x77777700
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xccc5, 0xdddd
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0xeeeeeeee, 0xdddddddd, 0xdddddddd, 0xdddddddd
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0xee000000, 0xdd000000, 0xef000000, 0x0000
+  dc32 0x7777, 0x7777, 0x8888, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0077, 0x0077, 0x0077, 0x0077, 0x00a6, 0x0000, 0x0000, 0x0000
+  dc32 0x77777700, 0x77777700, 0x77778800, 0x77770000, 0xa6a60000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x5cc50000, 0xdddd0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0xecceecec, 0xdddddddd, 0xffefdddd, 0xdddd
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xccc50000, 0xdddd0000
+  dc32 0xdddd, 0x00dd, 0x00dd, 0x0055, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0xdddddddd, 0xdddddddd, 0xdddddddd, 0x555555dd, 0x00dd, 0x00cc, 0x0000, 0x00cc
+  dc32 0x0000, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xcccccccc, 0x0000, 0xcccccccc
+  dc32 0x0000, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xcccccccc, 0x0000, 0xcccccc00
+  dc32 0x0000, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xcccccccc, 0x0000, 0x0000
+  dc32 0x0000, 0xdddddddd, 0xdddddddd, 0xdddd5555, 0xdddd0000, 0xcccc0000, 0x0000, 0x0000
+  dc32 0x0000, 0xdddddddd, 0xdddddddd, 0x55555555, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0005, 0xdddddddd, 0xdddddddd, 0x55555555, 0x0000, 0x0000, 0x0000, 0xcccc
+  dc32 0xdddd0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xcc000000
+  dc32 0xdddd, 0x00dd, 0x00dd, 0x00dd, 0x00dd, 0xeedd, 0xdddd, 0xccdddd
+  dc32 0xdddd0000, 0xdddddd00, 0xdddddd00, 0xdddddd00, 0xdddddd00, 0xdddddd00, 0xdddddd00, 0xddddee00
+  dc32 0x00dd, 0x00fd, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0x555555dd, 0x00dd, 0x00cc, 0x0000
+  dc32 0xdddddd00, 0xdddddd55, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xcccccccc, 0x0000
+  dc32 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xcccccccc, 0x0000
+  dc32 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdd555555, 0xdd000000, 0xcc000000, 0x0000
+  dc32 0xdddd, 0x5550dffd, 0xdddd0000, 0xdddd0000, 0x55550000, 0x0000, 0x0000, 0x0000
+  dc32 0xdd000000, 0xfd000000, 0x0000, 0x0000, 0x00ff, 0x00dd, 0xeedd, 0xdddd
+  dc32 0xdddddd, 0x5dddddd, 0xdddddddd, 0xdddddddd, 0xdddd5555, 0xdddd0000, 0xcccc0000, 0x0000
+  dc32 0xdddd0000, 0xfddd0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xeeeeeeee
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xee000000
+  dc32 0x0000, 0x0000, 0x555555, 0xdddddd, 0xdddddd, 0x55dddd, 0xdddd, 0xcccc
+  dc32 0x0000, 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xccccccdd
+  dc32 0x0000, 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd
+  dc32 0x0000, 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xddcccccc
+  dc32 0x0000, 0x0000, 0x55555500, 0xdddddd00, 0xdddddd00, 0xdd055500, 0xdd000000, 0xcc000000
+  dc32 0xeeee, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0xcccc, 0xdddd, 0x55dddd, 0xdddddd, 0xdddddd, 0x00dd, 0x00dd
+  dc32 0xdddddddd, 0xddddddee, 0xdddddd00, 0xdddddd55, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd
+  dc32 0xdd000000, 0xee000000, 0x0000, 0x55000000, 0xdd000000, 0xdd000000, 0xdddfffff, 0xdddddddd
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xffffffff, 0xdddddddd
+  dc32 0x00dd, 0x00ee, 0x0000, 0x0000, 0x0000, 0x0000, 0xffffffff, 0xdddddddd
+  dc32 0xdddddddd, 0xeeeeeeee, 0x0000, 0x0000, 0x0000, 0x0000, 0xffffffff, 0xdddddddd
+  dc32 0xdd000000, 0xee000000, 0x0000, 0x0000, 0x0000, 0x0000, 0xffffffff, 0xdddddddd
+  dc32 0x0000, 0x0000, 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd
+  dc32 0x0000, 0x0000, 0x0000, 0x55555555, 0xdddddddd, 0xdddddddd, 0xdddd0000, 0xdddd0000
+  dc32 0x0000, 0xcccccc, 0xdddddd, 0x55ddfdff, 0xdddd0000, 0xdddd0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0xdf000000, 0xdd000000
+  dc32 0x00cc, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0xcccccccc, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0xdddddddd, 0xdddddddd, 0xeeeeeeee, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xffffdddd, 0xdddd, 0xdddd, 0x0555
+  dc32 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0xdddddddd, 0x55555555
+  dc32 0xddcccccc, 0xdd000000, 0xddcccccc, 0xdddddddd, 0xddddddff, 0xdddddd00, 0xdddddd00, 0x55555500
+  dc32 0xcccccccc, 0x0000, 0xcccccccc, 0xdddddddd, 0xffffffff, 0x0000, 0x0000, 0x0000
+  dc32 0xccddeeee, 0xdddddd, 0xccdddddd, 0xdddddddd, 0xffffffff, 0x0000, 0x0000, 0x0000
+  dc32 0xeeeeeeee, 0xdddddddd, 0xddddeeee, 0xdddd0000, 0xffff0000, 0x0000, 0x0000, 0x0000
+  dc32 0xdd000000, 0xdd000000, 0xee000000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x99999999, 0x77777777, 0x77777777, 0x77777777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x88888777, 0x0777, 0x0777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777778, 0x777777a0
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x88887777, 0x8777, 0x0777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777788, 0x77777700, 0x777777b0
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777778, 0x77777780
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x88888877, 0x0977, 0x6777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777778, 0x77777780, 0x77777800
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x0000, 0x0000, 0x0000
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x0000, 0x0000, 0x0006
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x7000000, 0x97000000, 0x77000000
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x877770, 0x87770, 0x8770
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x770000, 0x770000, 0x770000
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x87777777, 0x8777777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77000700, 0x77000700, 0x77000700
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x0008, 0x0000, 0x0000
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777770, 0x87777780, 0x8777800
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x7000000, 0x7000000, 0xb7000000
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x7777, 0x7777, 0x8777
+  dc32 0x0777, 0x0777, 0x0777, 0x0777, 0x0777, 0x0777, 0x0777, 0x0777
+  dc32 0x77777a00, 0x77777000, 0x7777b000, 0x77790000, 0x77700000, 0x77700000, 0x77800000, 0x77000000
+  dc32 0x0a77, 0x0067, 0x0007, 0x8000009, 0x7000000, 0x77700000, 0x8000000, 0x0000
+  dc32 0x77777776, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x7777777, 0x7777777, 0x8777777
+  dc32 0x0677, 0x0077, 0x800000b7, 0x78000009, 0x77000000, 0x77000000, 0x77900000, 0x77790000
+  dc32 0x77777700, 0x77777600, 0x77777000, 0x77779000, 0x77770000, 0x77700000, 0x7700000, 0x8800000
+  dc32 0x7777, 0xa7777, 0x77777, 0x877777, 0x777777, 0x7777777, 0x7777777, 0x97777777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x7777777, 0x7777777, 0x8777777
+  dc32 0x7777a000, 0x77770000, 0x77770000, 0x77770000, 0x77770000, 0x77770000, 0x77770000, 0x77770000
+  dc32 0x0000, 0x88888, 0x8877777, 0x7777777, 0x7777777, 0x77777777, 0x77777777, 0x77777777
+  dc32 0x0067, 0x88888877, 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x77777000, 0x77777000
+  dc32 0x77000000, 0x770000aa, 0x77000077, 0x77000079, 0x77000070, 0x77000070, 0x7000070, 0x7000079
+  dc32 0x0000, 0xaaaaaaaa, 0x77777777, 0x99999999, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0770, 0x0770, 0x0770, 0x0770, 0x0770, 0x0770, 0x7770, 0x97770
+  dc32 0x770000, 0x770000, 0x770000, 0x770008, 0x770007, 0x770007, 0x770007, 0x770007
+  dc32 0xa77777, 0x67777, 0xb777, 0x0977, 0x0077, 0x70000007, 0x77000000, 0x77900000
+  dc32 0x77000700, 0x77000700, 0x77000700, 0x77000700, 0x77000700, 0x77000700, 0x77000700, 0x87000700
+  dc32 0x0000, 0xaaaaaa, 0x777777, 0x777777, 0x777777, 0x777777, 0x777777, 0x777777
+  dc32 0x0000, 0xaaaa0000, 0x77778800, 0x77777700, 0x77777700, 0x77777770, 0x77777770, 0x77777770
+  dc32 0xa77000, 0x77000, 0x7b000, 0x70000, 0x70000, 0x70000, 0x70000, 0x70000
+  dc32 0x0000, 0x8aaa8, 0x877777, 0x8777777, 0x7777777, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0xaaaaaaaa, 0x77777777, 0x77777777, 0x77777777, 0x0000, 0x0007, 0x00b7
+  dc32 0x77000000, 0x770000aa, 0x77000077, 0x77000079, 0x77000070, 0x77000070, 0x77000070, 0x77000079
+  dc32 0x0777, 0x0777, 0x0777, 0x0777, 0x0777, 0x0777, 0x7777, 0x97777
+  dc32 0x77777777, 0x77777777, 0x77777766, 0x77777b00, 0x77799000, 0x77700000, 0x77000000, 0x77777777
+  dc32 0x77777777, 0x77777777, 0x66666666, 0x0000, 0x0000, 0x0000, 0x0000, 0x77777777
+  dc32 0x0777, 0x0777, 0x0777, 0x077b, 0x8790, 0x7700, 0x77700, 0x77777777
+  dc32 0x78000000, 0xa0000066, 0x0077, 0x0877, 0x8777, 0x7777, 0x7777, 0x77777777
+  dc32 0x0000, 0x66666000, 0x77777a00, 0x77777780, 0x77777770, 0x77777770, 0x77777777, 0x77777777
+  dc32 0x877777, 0x77777, 0x67777, 0xb777, 0x0777, 0x0777, 0x0077, 0x77777777
+  dc32 0x77770000, 0x77776000, 0x77777000, 0x77777800, 0x77777780, 0x77777770, 0x77777770, 0x77777777
+  dc32 0x000b, 0x0007, 0x00a7, 0x0077, 0x0877, 0x0777, 0x7777, 0x77977777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x7777777b, 0x77777790, 0x77777700, 0x77777700, 0x77777777
+  dc32 0x877777, 0x77777, 0x67777, 0xb777, 0x0779, 0x0770, 0x0077, 0x77777777
+  dc32 0x77777777, 0x77777777, 0x77777777, 0x77777777, 0x99999999, 0x0000, 0x0000, 0x77977777
+  dc32 0x77770000, 0x77770000, 0x77770000, 0x77778000, 0x99977000, 0x97000, 0x7700, 0x77777777
+  dc32 0x87777777, 0x7777777, 0x6677777, 0xbbbbb, 0x0000, 0x0000, 0x0000, 0x77777777
+  dc32 0x77777000, 0x77777000, 0x77777000, 0xbbbbb000, 0x0000, 0x0000, 0x0000, 0x77777777
+  dc32 0x7000077, 0x7000077, 0x7000077, 0x7000077, 0x7000077, 0x7000077, 0x7000077, 0x77777777
+  dc32 0xb0000000, 0x76000000, 0x77a00000, 0x77780000, 0x77778000, 0x77777000, 0x77777700, 0x77777777
+  dc32 0xbb77770, 0xa777770, 0x677770, 0xb7770, 0x9770, 0x0970, 0x0070, 0x77777777
+  dc32 0x770007, 0x770007, 0x770007, 0x770007, 0x770007, 0x770007, 0x770007, 0x77777777
+  dc32 0x777b0000, 0x77776000, 0x77777a00, 0x77777780, 0x77777778, 0x77777777, 0x77777777, 0x77777777
+  dc32 0x8000700, 0x0700, 0x0700, 0x0700, 0x0700, 0x0700, 0x70000700, 0x77977777
+  dc32 0x777777, 0x777777, 0x777777, 0xbbbbbb, 0x0000, 0x0000, 0x0000, 0x97777777
+  dc32 0x77777780, 0x77777a00, 0x77776000, 0xbbbb0000, 0x0000, 0x0000, 0x0000, 0x77777777
+  dc32 0x70000, 0x70000, 0x76000, 0x877000, 0x777800, 0x777700, 0x7777770, 0x77777777
+  dc32 0xbbbbbbb, 0xa777777, 0x677777, 0xbbbbb, 0x0000, 0x0000, 0x0000, 0x77777777
+  dc32 0xbbbbbb77, 0x77777777, 0x77777777, 0xbbbbbbbb, 0x0000, 0x0000, 0x0000, 0x77977777
+  dc32 0x77000077, 0x77000077, 0x77000077, 0xb7000077, 0x7000077, 0x7000077, 0x77000077, 0x77777777
+  dc32 0xbbb77777, 0xa7777777, 0x6777777, 0xb77777, 0x97777, 0x7777, 0x0777, 0x77777777
+
+
+.align 32
+  dc32 1120   ; res_images_ImgJavaGrinder_image.length
+_res_images_ImgJavaGrinder_image:
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0001, 0x0002, 0x0003, 0x0004, 0x0005, 0x0006, 0x0007, 0x0008
+  dw 0x0009, 0x0000, 0x0000, 0x0000, 0x0000, 0x000a, 0x000b, 0x000c
+  dw 0x0000, 0x0000, 0x0000, 0x000d, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x000e, 0x000f, 0x0010, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0011, 0x0012, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0013, 0x0014, 0x0015, 0x0016, 0x0017, 0x0018, 0x0019, 0x001a
+  dw 0x001b, 0x001c, 0x001d, 0x001e, 0x001f, 0x0020, 0x0021, 0x0022
+  dw 0x0023, 0x0024, 0x0025, 0x0026, 0x0027, 0x0028, 0x0029, 0x002a
+  dw 0x002b, 0x002c, 0x0016, 0x002d, 0x002e, 0x002f, 0x0030, 0x0031
+  dw 0x0000, 0x0032, 0x0033, 0x0034, 0x0035, 0x0036, 0x0037, 0x0038
+  dw 0x0039, 0x003a, 0x003b, 0x0016, 0x003c, 0x003d, 0x0019, 0x001a
+  dw 0x003e, 0x003f, 0x0040, 0x0041, 0x0042, 0x0020, 0x0043, 0x0044
+  dw 0x0045, 0x0046, 0x0047, 0x0048, 0x0049, 0x004a, 0x004b, 0x004c
+  dw 0x004d, 0x004e, 0x0016, 0x004f, 0x0050, 0x0051, 0x0019, 0x0052
+  dw 0x0053, 0x0054, 0x0055, 0x0056, 0x0057, 0x0058, 0x0059, 0x005a
+  dw 0x005b, 0x005c, 0x005d, 0x005e, 0x005f, 0x0060, 0x0061, 0x0062
+  dw 0x0063, 0x0064, 0x0065, 0x0066, 0x0067, 0x0068, 0x0069, 0x006a
+  dw 0x006b, 0x006c, 0x006d, 0x005e, 0x006e, 0x006f, 0x0070, 0x0071
+  dw 0x0072, 0x0073, 0x005e, 0x0068, 0x0074, 0x0075, 0x0061, 0x0076
+  dw 0x0000, 0x0077, 0x0078, 0x0079, 0x007a, 0x007b, 0x007c, 0x007d
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x007e, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x007f, 0x0080, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0081, 0x0082, 0x0083, 0x0084, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0085, 0x0086, 0x0087, 0x0088, 0x0089, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x008a, 0x0000, 0x008b, 0x008c, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x008d, 0x008e, 0x008f, 0x0090, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0091
+  dw 0x0092, 0x0093, 0x0000, 0x0094, 0x0095, 0x0096, 0x0000, 0x0097
+  dw 0x0098, 0x0099, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x009a
+  dw 0x009b, 0x009c, 0x009d, 0x009e, 0x009f, 0x00a0, 0x00a1, 0x00a2
+  dw 0x00a3, 0x00a4, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x00a5, 0x00a6, 0x00a7, 0x00a8, 0x00a8, 0x00a9, 0x00aa, 0x00ab
+  dw 0x00ac, 0x00ad, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00ae
+  dw 0x00af, 0x00b0, 0x00b1, 0x00b2, 0x00b2, 0x00b3, 0x00b4, 0x00b5
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00b6, 0x00b7
+  dw 0x00b8, 0x00b9, 0x00ba, 0x00bb, 0x00bb, 0x00bc, 0x00bd, 0x00be
+  dw 0x00bf, 0x00c0, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x00c1, 0x00c2
+  dw 0x00c3, 0x00c4, 0x00c5, 0x00c5, 0x00c5, 0x00c6, 0x00c7, 0x00c8
+  dw 0x00c9, 0x00ca, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dw 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb
+  dw 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb
+  dw 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb
+  dw 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb
+  dw 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb, 0x00cb
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cd
+  dw 0x00ce, 0x00cf, 0x00d0, 0x00cf, 0x00d1, 0x00d2, 0x00ce, 0x00cf
+  dw 0x00cc, 0x00cc, 0x00d3, 0x00d4, 0x00d5, 0x00d6, 0x00d4, 0x00d7
+  dw 0x00d8, 0x00d9, 0x00da, 0x00d4, 0x00db, 0x00dc, 0x00d4, 0x00d4
+  dw 0x00dd, 0x00d4, 0x00de, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00df
+  dw 0x00e0, 0x00e1, 0x00e2, 0x00e3, 0x00e4, 0x00e5, 0x00e0, 0x00e1
+  dw 0x00e6, 0x00cc, 0x00e7, 0x00e8, 0x00e9, 0x00ea, 0x00eb, 0x00ec
+  dw 0x00ed, 0x00ee, 0x00ef, 0x00f0, 0x00f1, 0x00f2, 0x00f3, 0x00f4
+  dw 0x00f5, 0x00eb, 0x00f6, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00f7, 0x00f8, 0x00f9
+  dw 0x00fa, 0x00fb, 0x00fc, 0x00fd, 0x00fe, 0x00ff, 0x00fa, 0x00fb
+  dw 0x0100, 0x0101, 0x0102, 0x0103, 0x0104, 0x0105, 0x0106, 0x0107
+  dw 0x0108, 0x0109, 0x010a, 0x010b, 0x010c, 0x010d, 0x010e, 0x010f
+  dw 0x0110, 0x0106, 0x0111, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+  dw 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc, 0x00cc
+
+
+.align 32
+  dc32 16   ; res_images_ImgJavaGrinder_palette.length
+_res_images_ImgJavaGrinder_palette:
+  dw 0x0eee, 0x0444, 0x0000, 0x0888, 0x0222, 0x0ecc, 0x066e, 0x000e
+  dw 0x0aae, 0x022e, 0x088e, 0x044e, 0x0eaa, 0x0e00, 0x0e66, 0x0e22
+
+
+.align 32
+  dc32 64   ; res_sprites_SprArrow_pattern.length
+_res_sprites_SprArrow_pattern:
+  dc32 0x1100000, 0x1100000, 0x1110000, 0x1110000, 0x1121100, 0x1123310, 0x1123310, 0x1123331
+  dc32 0x1123331, 0x1123333, 0x1123333, 0x1122233, 0x1122233, 0x1122233, 0x1122233, 0x1122233
+  dc32 0x1122223, 0x1122223, 0x1122222, 0x1122222, 0x1122222, 0x1121111, 0x1121111, 0x1111101
+  dc32 0x1111101, 0x1110000, 0x1110000, 0x1100000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x10000000
+  dc32 0x10000000, 0x31000000, 0x31000000, 0x33110000, 0x33331000, 0x33331000, 0x33333110, 0x33333110
+  dc32 0x33333331, 0x33333331, 0x23111111, 0x23111111, 0x23110000, 0x13331000, 0x13331000, 0x11331000
+  dc32 0x11331000, 0x1333110, 0x1333110, 0x1113110, 0x113110, 0x113110, 0x111110, 0x111110
+
+
+.align 32
+  dc32 4   ; res_sprites_SprArrow_palette.length
+_res_sprites_SprArrow_palette:
+  dw 0x0cae, 0x0000, 0x0ccc, 0x0eee
+
+.align 32
+  dc32 64   ; res_sprites_SprArrow_clearPattern.length
+_res_sprites_SprArrow_clearPattern:
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+  dc32 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000, 0x0000
+
+
+  ; VDP register initialization (24 bytes)
+.align 32
+vdp_reg_init_table:
+  db  0x04  ; reg  0 = mode reg 1: no H interrupt
+  db  0x14  ; reg  1 = mode reg 2: blanked, no V interrupt, DMA enable
+  db  0x38  ; reg  2 = name table base for scroll A: 0xe000
+  db  0x3c  ; reg  3 = name table base for window:   0xf000
+  db  0x06  ; reg  4 = name table base for scroll B: 0xc000
+  db  0x6c  ; reg  5 = sprite attribute table base: 0xd800
+  db  0x00  ; reg  6 = unused register: 0x00
+  db  0x00  ; reg  7 = background color: 0x00
+  db  0x00  ; reg  8 = unused register: 0x00
+  db  0x00  ; reg  9 = unused register: 0x00
+  db  0xff  ; reg 10 = H interrupt register: 0xFF (esentially off)
+  db  0x03  ; reg 11 = mode reg 3: disable ext int, full H/V scroll
+  db  0x81  ; reg 12 = mode reg 4: 40 cell horiz mode, no interlace
+  db  0x3f  ; reg 13 = H scroll table base: 0xfc00
+  db  0x00  ; reg 14 = unused register: 0x00
+  db  0x02  ; reg 15 = auto increment: 0x02
+  db  0x01  ; reg 16 = scroll size: V=32 cell, H=64 cell
+  db  0x00  ; reg 17 = window H position: 0x00
+  db  0x00  ; reg 18 = window V position: 0x00
+  db  0xff  ; reg 19 = DMA length count low:   0x00ff
+  db  0xff  ; reg 20 = DMA length count high:  0xffxx
+  db  0x00  ; reg 21 = DMA source address low: 0xxxxx00
+  db  0x00  ; reg 22 = DMA source address mid: 0xxx00xx
+  db  0x80  ; reg 23 = DMA source address high: VRAM fill, addr = 0x00xxxx
+
+  ; PSG initialization: set all channels to minimum volume
+psg_reg_init_table:
+  db  0x9f,0xbf,0xdf,0xff
+
+_load_fonts:
+  move.w #((fontend - font) / 4) - 1, d6
+
+0x340c: 3c3c move.w #0xd7, d6                        
+        00d7
+
+  move.l #0x4c000002, (a1)  ; C00004 VRAM write to 0x8c00
+
+0x3410: 22bc move.l #0x4c000002, (a1)                
+        4c00
+        0002
+
+  movea.l #font, a2         ; Point to font set
+
+0x3416: 247c movea.l #0x3424, a2                     
+        0000
+        3424
+
+_load_fonts_loop:
+  move.l (a2)+, (a0)        ; C00000 write next longword of charset to VDP
+
+0x341c: 209a move.l (a2)+, (a0)                      
+
+  dbra d6, _load_fonts_loop ; loop until done
+
+0x341e: 51ce dbra d6, 0x341c (-4)                    
+        fffc
+
+  rts
+
+0x3422: 4e75 rts                                     
+
+
+.align 32
+font:
+  dc32 0x01111100, 0x11000110, 0x11000110, 0x11000110 ; A
+  dc32 0x11111110, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x11111100, 0x11000110, 0x11000110, 0x11111100 ; B
+  dc32 0x11000110, 0x11000110, 0x11111100, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000110, 0x11000000 ; C
+  dc32 0x11000110, 0x11000110, 0x11111110, 0x00000000
+  dc32 0x11111100, 0x11000110, 0x11000110, 0x11000110 ; D
+  dc32 0x11000110, 0x11000110, 0x11111100, 0x00000000
+  dc32 0x11111110, 0x11000000, 0x11000000, 0x11111100 ; E
+  dc32 0x11000000, 0x11000000, 0x11111110, 0x00000000
+  dc32 0x11111110, 0x11000000, 0x11000000, 0x11111100 ; F
+  dc32 0x11000000, 0x11000000, 0x11000000, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000000, 0x11001110 ; G
+  dc32 0x11000110, 0x11000110, 0x11111110, 0x00000000
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x11111110 ; H
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x00111000, 0x00111000, 0x00111000, 0x00111000 ; I
+  dc32 0x00111000, 0x00111000, 0x00111000, 0x00000000
+  dc32 0x00000110, 0x00000110, 0x00000110, 0x00000110 ; J
+  dc32 0x00000110, 0x01100110, 0x01111110, 0x00000000
+  dc32 0x11000110, 0x11001100, 0x11111000, 0x11111000 ; K
+  dc32 0x11001100, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x01100000, 0x01100000, 0x01100000, 0x01100000 ; L
+  dc32 0x01100000, 0x01100000, 0x01111110, 0x00000000
+  dc32 0x11000110, 0x11101110, 0x11111110, 0x11010110 ; M
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x11000110, 0x11100110, 0x11110110, 0x11011110 ; N
+  dc32 0x11001110, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000110, 0x11000110 ; O
+  dc32 0x11000110, 0x11000110, 0x11111110, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000110, 0x11111110 ; P
+  dc32 0x11000000, 0x11000000, 0x11000000, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000110, 0x11000110 ; Q
+  dc32 0x11001110, 0x11001110, 0x11111110, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000110, 0x11111100 ; R
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x11111110, 0x11000110, 0x11000000, 0x11111110 ; S
+  dc32 0x00000110, 0x11000110, 0x11111110, 0x00000000
+  dc32 0x11111110, 0x00111000, 0x00111000, 0x00111000 ; T
+  dc32 0x00111000, 0x00111000, 0x00111000, 0x00000000
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x11000110 ; U
+  dc32 0x11000110, 0x11000110, 0x11111110, 0x00000000
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x11000110 ; V
+  dc32 0x01101100, 0x00111000, 0x00010000, 0x00000000
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x11010110 ; W
+  dc32 0x11111110, 0x11101110, 0x11000110, 0x00000000
+  dc32 0x11000110, 0x11000110, 0x11101110, 0x01111100 ; X
+  dc32 0x11101110, 0x11000110, 0x11000110, 0x00000000
+  dc32 0x11000110, 0x11000110, 0x11000110, 0x01101100 ; Y
+  dc32 0x00111000, 0x00111000, 0x00111000, 0x00000000
+  dc32 0x11111110, 0x00001110, 0x00011100, 0x00111000 ; Z
+  dc32 0x01110000, 0x11100000, 0x11111110, 0x00000000
+  dc32 0x00000000, 0x00000000, 0x00000000, 0x00000000 ; ' '
+  dc32 0x00000000, 0x00000000, 0x00000000, 0x00000000
+fontend:
+
+_clear_text:
+  move.w #(64 * 32 / 2) - 1, d6
+
+0x3784: 3c3c move.w #0x3ff, d6                       
+        03ff
+
+  move.l #0x60000003, (a1)  ; C00004 VRAM write to 0xe000
+
+0x3788: 22bc move.l #0x60000003, (a1)                
+        6000
+        0003
+
+  move.l #((1120 + (']' - 'A')) << 16) | (1120 + (']' - 'A')), d7
+
+0x378e: 2e3c move.l #0x47c047c, d7                   
+        047c
+        047c
+
+_clear_text_loop:
+  move.l d7, (a0)           ; C00000 write next longword of ' ' to VDP
+
+0x3794: 2087 move.l d7, (a0)                         
+
+  dbra d6, _clear_text_loop ; loop until done
+
+0x3796: 51ce dbra d6, 0x3794 (-4)                    
+        fffc
+
+  rts
+
+0x379a: 4e75 rts                                     
+
+
+_set_pattern_table:
+  lsl.l #5, d7               ; pattern_index * 32
+
+0x379c: eb8f lsl.l #5, d7                            
+
+  move.l d7, d5
+
+0x379e: 2a07 move.l d7, d5                           
+
+  rol.w #2, d5
+
+0x37a0: e55d rol.w #2, d5                            
+
+  and.w #3, d5               ; d5 = upper 2 bits moved to lower 2 bits
+
+0x37a2: ca7c and.w #0x3, d5                          
+        0003
+
+  and.w #0x3ffe, d7          ; d7 = lower 13 bits
+
+0x37a6: ce7c and.w #0x3ffe, d7                       
+        3ffe
+
+  or.w #0x4000, d7
+
+0x37aa: 8e7c or.w #0x4000, d7                        
+        4000
+
+  swap d7
+
+0x37ae: 4847 swap d7                                 
+
+  or.w d5, d7
+
+0x37b0: 8e45 or.w d5, d7                             
+
+  move.l d7, (a1)
+
+0x37b2: 2287 move.l d7, (a1)                         
+
+  move.l (-4,a3), d5         ; Code len
+
+0x37b4: 2a2b move.l (-4,a3), d5                      
+        fffc
+
+  subq.l #1, d5
+
+0x37b8: 5385 subq.l #1, d5                           
+
+_set_pattern_table_loop:
+  move.l (a3)+, (a0)
+
+0x37ba: 209b move.l (a3)+, (a0)                      
+
+  dbf d5, _set_pattern_table_loop
+
+0x37bc: 51cd dbra d5, 0x37ba (-4)                    
+        fffc
+
+  rts
+
+0x37c0: 4e75 rts                                     
+
+
+_set_image_data:
+  move.l #0x40000003, d7     ; Set cursor position in VDP
+
+0x37c2: 2e3c move.l #0x40000003, d7                  
+        4000
+        0003
+
+  move.l d7, (a1)
+
+0x37c8: 2287 move.l d7, (a1)                         
+
+  move.l (-4,a3), d5         ; Code len
+
+0x37ca: 2a2b move.l (-4,a3), d5                      
+        fffc
+
+  eor.w d6, d6
+
+0x37ce: bd46 eor.w d6, d6                            
+
+_set_image_data_loop:
+  move.w (a3)+, (a0)
+
+0x37d0: 309b move.w (a3)+, (a0)                      
+
+  add.w #1, d6
+
+0x37d2: 5246 addq.w #1, d6                           
+
+  cmp.w #40, d6
+
+0x37d4: bc7c cmp.w #0x28, d6                         
+        0028
+
+  bne.s _set_image_data_not_40
+
+0x37d8: 660a bne.s 0x37e4 (10)                       
+
+  eor.w d6, d6
+
+0x37da: bd46 eor.w d6, d6                            
+
+  add.l #0x00800000, d7
+
+0x37dc: 0687 addi.l #0x00800000, d7                  
+        0080
+        0000
+
+  move.l d7, (a1)
+
+0x37e2: 2287 move.l d7, (a1)                         
+
+_set_image_data_not_40:
+  dbf d5, _set_image_data_loop
+
+0x37e4: 51cd dbra d5, 0x37d0 (-22)                   
+        ffea
+
+  rts
+
+0x37e8: 4e75 rts                                     
+
+
+_set_palette_colors:
+  move.l #0xc0000000, (a1)   ; C00004 write CRAM address 0x0000
+
+0x37ea: 22bc move.l #0xc0000000, (a1)                
+        c000
+        0000
+
+  move.l (-4,a3), d5         ; Code len
+
+0x37f0: 2a2b move.l (-4,a3), d5                      
+        fffc
+
+_set_palette_colors_loop:
+  move.w (a3)+, (a0)
+
+0x37f4: 309b move.w (a3)+, (a0)                      
+
+  dbf d5, _set_palette_colors_loop
+
+0x37f6: 51cd dbra d5, 0x37f4 (-4)                    
+        fffc
+
+  rts
+
+0x37fa: 4e75 rts                                     
+
+
+_set_palette_colors_at_index:
+  lsl.w #1, d0
+
+0x37fc: e348 lsl.w #1, d0                            
+
+  swap d0
+
+0x37fe: 4840 swap d0                                 
+
+  add.l #0xc0000000, d0
+
+0x3800: 0680 addi.l #0xc0000000, d0                  
+        c000
+        0000
+
+  move.l d0, (a1)   ; C00004 write CRAM address d0 * 2
+
+0x3806: 2280 move.l d0, (a1)                         
+
+  move.l (-4,a3), d5         ; Code len
+
+0x3808: 2a2b move.l (-4,a3), d5                      
+        fffc
+
+_set_palette_colors_at_index_loop:
+  move.w (a3)+, (a0)
+
+0x380c: 309b move.w (a3)+, (a0)                      
+
+  dbf d5, _set_palette_colors_at_index_loop
+
+0x380e: 51cd dbra d5, 0x380c (-4)                    
+        fffc
+
+  rts
+
+0x3812: 4e75 rts                                     
+
+
+
+data sections:
+0000: 00 00 00 00 00 00 02 02 00 00 02 00 00 00 02 00  ................
+0010: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0020: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0030: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0040: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0050: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0060: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0070: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0080: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0090: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+00a0: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+00b0: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+00c0: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+00d0: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+00e0: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+00f0: 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02 00  ................
+0100: 53 45 47 41 20 47 45 4e 45 53 49 53 20 20 20 20  SEGA GENESIS    
+0110: 28 43 29 2d 2d 2d 2d 20 32 30 31 35 2e 4d 41 59  (C)---- 2015.MAY
+0120: 4a 41 56 41 20 47 52 49 4e 44 45 52 20 20 20 20  JAVA GRINDER    
+0130: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+0140: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+0150: 4a 41 56 41 20 47 52 49 4e 44 45 52 20 20 20 20  JAVA GRINDER    
+0160: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+0170: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+0180: 47 4d 20 4d 4b 2d 30 30 30 30 20 2d 30 30 00 00  GM MK-0000 -00..
+0190: 4a 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20  J               
+01a0: 00 00 00 00 00 3f ff ff 00 ff 00 00 00 ff ff ff  .....?..........
+01b0: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+01c0: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+01d0: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+01e0: 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20 20                  
+01f0: 4a 55 45 20 20 20 20 20 20 20 20 20 20 20 20 20  JUE             
+06b0: 00 00 08 90 00 00 00 00 00 00 00 00 00 00 00 00  ................
+06c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+06d0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+06e0: 00 00 00 00 00 00 00 11 00 00 01 22 00 00 32 22  ..........."..2"
+06f0: 00 00 22 22 00 00 00 00 00 00 00 00 00 00 00 00  ..""............
+0700: 44 44 44 00 22 22 22 11 22 22 22 22 22 22 22 22  DDD.""".""""""""
+0710: 21 11 22 22 00 00 00 00 00 00 00 00 00 00 00 00  !.""............
+0720: 00 00 00 00 00 00 00 00 10 00 00 00 23 00 00 00  ............#...
+0730: 22 00 00 00 00 00 00 00 00 02 22 22 00 02 22 22  ".........""..""
+0740: 00 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22  ..""..""..""..""
+0750: 00 02 22 22 00 05 00 00 22 22 22 00 22 22 22 24  ..""...."""."""$
+0760: 22 22 22 22 22 22 22 22 33 13 22 22 00 00 12 22  """"""""3.""..."
+0770: 00 00 02 22 00 00 00 00 00 00 22 22 00 00 22 22  ..."......""..""
+0780: 40 00 22 22 20 00 22 22 21 00 33 13 22 00 00 00  @."" .""!.3."...
+0790: 22 00 00 00 00 00 00 00 00 22 22 20 00 22 22 20  "........"" ."" 
+07a0: 00 22 22 20 00 22 22 20 00 22 22 20 00 22 22 20  ."" ."" ."" ."" 
+07b0: 00 22 22 20 00 00 00 00 02 22 22 00 02 22 22 00  ."" ....."".."".
+07c0: 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22 00  ."".."".."".."".
+07d0: 02 22 22 00 00 00 00 00 22 22 00 00 22 22 00 00  ."".....""..""..
+07e0: 22 22 00 00 22 22 00 00 33 33 00 00 00 00 00 00  ""..""..33......
+07f0: 00 00 00 00 00 00 03 33 00 00 02 22 00 00 02 22  .......3..."..."
+0800: 00 00 02 22 00 00 02 22 00 00 02 22 00 00 02 22  ..."..."..."..."
+0810: 00 00 02 22 33 33 33 33 22 22 22 22 22 22 22 22  ..."3333""""""""
+0820: 22 22 22 22 22 22 22 22 22 22 22 22 22 11 11 12  """""""""""""...
+0830: 22 00 00 01 00 00 00 00 00 00 00 00 24 00 00 00  "...........$...
+0840: 22 40 00 00 22 21 00 00 22 22 10 00 22 22 20 00  "@.."!.."".."" .
+0850: 22 22 23 00 00 00 00 00 00 02 22 22 00 02 22 22  ""#.......""..""
+0860: 00 02 22 22 00 02 22 22 00 03 33 33 00 00 00 00  ..""..""..33....
+0870: 00 00 00 00 00 03 33 33 00 02 22 22 00 02 22 22  ......33..""..""
+0880: 00 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22  ..""..""..""..""
+0890: 00 02 22 22 33 33 33 30 22 22 22 20 22 22 22 22  ..""3330""" """"
+08a0: 22 22 22 22 22 22 22 22 33 32 22 22 00 01 22 22  """"""""32""..""
+08b0: 00 00 12 22 00 00 00 00 00 00 00 00 00 00 00 00  ..."............
+08c0: 40 00 00 00 21 00 00 00 22 00 00 00 22 00 00 00  @...!..."..."...
+08d0: 22 00 00 00 00 00 00 00 00 00 00 02 00 00 00 02  "...............
+08e0: 00 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02  ................
+08f0: 00 00 00 02 00 00 00 00 22 22 00 00 22 22 00 00  ........""..""..
+0900: 22 22 00 00 22 22 00 00 22 22 00 00 22 22 00 00  ""..""..""..""..
+0910: 22 22 00 00 00 00 22 22 00 00 24 42 00 00 00 00  ""....""..$B....
+0920: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+0930: 00 00 00 00 40 00 42 22 00 00 02 22 00 00 02 22  ....@.B"..."..."
+0940: 00 00 22 22 00 04 22 22 41 12 22 22 22 22 22 23  ..""..""A."""""#
+0950: 22 22 22 23 22 00 00 00 22 00 00 00 22 00 00 00  """#"..."..."...
+0960: 22 00 00 00 25 00 00 00 30 00 00 00 00 00 00 00  "...%...0.......
+0970: 00 00 00 00 00 02 22 22 00 02 22 22 00 02 22 22  ......""..""..""
+0980: 00 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22  ..""..""..""..""
+0990: 00 02 22 22 00 00 02 22 00 00 02 22 00 00 02 22  ..""..."..."..."
+09a0: 00 00 22 22 44 44 22 22 22 22 22 23 22 22 22 20  ..""DD"""""#""" 
+09b0: 22 22 22 21 22 00 00 00 22 00 55 05 20 00 22 22  """!"...".U. .""
+09c0: 20 00 22 22 50 00 22 22 00 00 22 22 00 00 22 22   .""P.""..""..""
+09d0: 30 00 22 22 00 22 22 20 00 22 22 20 00 22 22 20  0.""."" ."" ."" 
+09e0: 00 22 22 20 00 22 22 20 00 22 22 20 00 22 22 20  ."" ."" ."" ."" 
+09f0: 00 22 22 20 02 22 22 00 02 22 22 00 02 22 22 00  ."" ."".."".."".
+0a00: 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22 00  ."".."".."".."".
+0a10: 02 22 22 00 00 00 00 00 00 00 00 00 22 22 00 00  ."".........""..
+0a20: 22 22 00 00 22 22 00 00 22 22 00 01 22 22 00 02  ""..""..""..""..
+0a30: 22 22 00 02 00 00 00 00 00 33 33 33 00 22 22 22  "".......333."""
+0a40: 02 22 22 22 42 22 22 22 22 22 23 22 22 22 30 32  ."""B"""""#"""02
+0a50: 22 21 00 01 00 00 00 00 30 00 00 33 20 00 00 22  "!......0..3 .."
+0a60: 22 00 00 22 22 40 00 22 22 21 00 22 22 22 00 22  "..""@.""!."""."
+0a70: 22 22 30 22 00 00 00 00 33 30 33 33 22 20 22 22  ""0"....3033" ""
+0a80: 22 22 22 22 22 22 22 22 22 22 32 22 22 23 03 22  """"""""""2""#."
+0a90: 22 20 00 12 00 00 00 00 33 00 00 00 22 00 00 00  " ......3..."...
+0aa0: 22 00 00 00 22 40 00 00 22 20 00 00 22 20 00 00  "..."@.." .." ..
+0ab0: 22 20 00 00 00 00 02 22 00 00 02 22 00 00 02 22  " ....."..."..."
+0ac0: 00 00 02 22 00 00 02 22 00 00 02 22 00 00 02 22  ..."..."..."..."
+0ad0: 00 00 02 22 22 00 00 00 22 00 00 00 22 00 00 00  ...""..."..."...
+0ae0: 22 00 00 00 22 00 00 00 22 00 00 00 22 00 00 00  "..."..."..."...
+0af0: 22 00 00 00 42 22 22 00 02 22 22 00 02 22 22 00  "...B"".."".."".
+0b00: 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22 00  ."".."".."".."".
+0b10: 02 22 22 00 00 00 00 00 00 03 33 33 00 02 22 22  ."".......33..""
+0b20: 02 22 22 22 02 22 22 22 12 22 33 32 22 22 00 03  ."""."""."32""..
+0b30: 22 22 00 00 00 00 00 00 30 00 03 33 20 00 02 22  ""......0..3 .."
+0b40: 22 00 02 22 22 40 03 22 22 21 00 22 22 22 00 22  "..""@.""!."""."
+0b50: 22 22 00 12 00 00 00 00 33 00 00 03 22 00 00 02  ""......3..."...
+0b60: 22 00 00 02 22 00 00 02 22 10 00 12 22 20 00 22  "..."..."..." ."
+0b70: 22 20 00 22 00 00 00 00 33 03 33 33 22 02 22 22  " ."....3.33".""
+0b80: 22 02 22 22 22 02 22 22 22 02 22 22 22 02 22 22  ".""".""".""".""
+0b90: 22 02 22 22 00 00 00 00 00 00 00 33 00 00 00 22  "."".......3..."
+0ba0: 00 00 22 22 00 04 22 22 00 02 22 22 00 12 22 23  .."".."".."".."#
+0bb0: 00 22 22 20 00 00 00 00 33 33 00 00 22 22 00 00  ."" ....33..""..
+0bc0: 22 22 20 00 22 22 24 00 32 22 22 00 03 22 22 10  "" .""$.2"".."".
+0bd0: 00 12 22 20 00 00 00 00 00 03 33 33 00 02 22 22  .." ......33..""
+0be0: 00 22 22 22 04 22 22 22 02 22 23 33 12 22 30 00  ."""."""."#3."0.
+0bf0: 22 22 00 00 00 00 00 00 33 00 00 00 22 00 00 00  ""......3..."...
+0c00: 22 20 00 02 22 24 00 42 22 22 00 22 22 22 10 22  " .."$.B""."""."
+0c10: 22 22 20 22 00 00 00 00 33 33 33 30 22 22 22 20  "" "....3330""" 
+0c20: 22 22 22 22 22 22 22 22 22 23 32 22 22 30 03 22  """""""""#2""0."
+0c30: 22 13 00 13 00 00 00 00 00 00 00 00 00 00 00 00  "...............
+0c40: 00 00 00 00 40 00 00 00 21 00 00 00 22 00 00 00  ....@...!..."...
+0c50: 31 00 00 00 00 00 02 22 00 00 02 22 00 00 02 22  1......"..."..."
+0c60: 00 00 02 22 00 00 42 22 41 14 22 22 22 22 22 23  ..."..B"A."""""#
+0c70: 22 22 22 20 22 00 00 00 22 03 33 33 22 02 22 22  """ "...".33".""
+0c80: 20 02 22 22 20 02 22 22 30 02 22 22 00 02 22 22   ."" .""0.""..""
+0c90: 00 02 22 22 00 00 00 00 00 00 33 33 00 00 22 22  ..""......33..""
+0ca0: 00 00 22 22 00 00 22 22 00 00 22 22 00 00 22 22  ..""..""..""..""
+0cb0: 00 00 22 22 00 00 00 00 00 33 33 00 00 22 22 00  .."".....33.."".
+0cc0: 00 22 22 22 00 22 22 22 00 22 22 22 00 22 22 23  .""".""".""".""#
+0cd0: 00 22 22 20 00 00 00 00 33 33 33 00 22 22 22 00  ."" ....333.""".
+0ce0: 22 22 22 00 22 22 22 40 52 22 22 20 03 22 22 20  """."""@R"" ."" 
+0cf0: 00 12 22 20 00 00 00 02 00 00 00 02 00 00 00 02  .." ............
+0d00: 00 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02  ................
+0d10: 00 00 00 02 22 22 00 00 22 22 00 00 22 22 00 00  ....""..""..""..
+0d20: 22 22 00 00 22 22 00 04 22 22 00 02 22 22 00 02  ""..""..""..""..
+0d30: 22 22 00 03 00 00 00 00 03 33 33 33 02 22 22 22  "".......333."""
+0d40: 22 22 22 22 22 22 22 22 22 23 33 22 22 20 00 22  """""""""#3"" ."
+0d50: 13 10 13 22 00 00 00 00 00 03 33 33 00 02 22 22  ..."......33..""
+0d60: 20 02 22 22 24 03 22 22 22 00 22 22 22 00 22 22   .""$.""".""".""
+0d70: 22 00 12 22 00 00 00 00 00 00 03 33 00 00 02 22  "..".......3..."
+0d80: 00 00 02 22 00 00 42 22 10 00 22 22 20 00 22 22  ..."..B".."" .""
+0d90: 20 00 22 22 00 00 00 00 30 00 33 33 20 00 22 22   .""....0.33 .""
+0da0: 20 02 22 22 20 42 22 22 31 22 22 33 02 22 23 00   ."" B""1""3."#.
+0db0: 03 13 13 13 00 00 00 00 33 30 00 00 22 20 00 00  ........30.." ..
+0dc0: 22 22 00 00 22 22 40 00 32 22 20 00 02 22 20 00  ""..""@.2" .." .
+0dd0: 32 22 20 00 00 00 00 00 00 00 00 00 00 00 00 00  2" .............
+0de0: 00 00 00 00 00 02 22 22 00 02 22 22 00 05 22 22  ......""..""..""
+0df0: 00 00 22 22 12 22 22 22 04 41 22 22 00 00 42 22  .."".""".A""..B"
+0e00: 00 00 02 22 00 00 02 22 00 00 02 22 40 00 42 22  ..."..."..."@.B"
+0e10: 21 11 22 22 30 00 00 00 20 00 00 00 25 00 00 00  !.""0... ...%...
+0e20: 22 00 00 00 22 00 00 00 22 00 00 00 22 00 00 00  "..."..."..."...
+0e30: 23 00 00 00 11 11 22 22 00 00 42 22 00 00 04 22  #.....""..B"..."
+0e40: 00 00 00 22 00 00 00 22 00 00 04 22 00 00 42 22  ..."..."..."..B"
+0e50: 11 11 22 22 23 00 22 22 22 00 22 22 22 50 22 22  ..""#."""."""P""
+0e60: 22 20 22 22 22 20 22 22 22 20 22 22 22 20 22 22  " """ """ """ ""
+0e70: 22 30 22 22 22 22 00 32 22 22 00 22 22 22 00 22  "0"""".2""."""."
+0e80: 22 22 00 22 22 22 00 22 22 22 00 32 22 22 00 02  "".""".""".2""..
+0e90: 22 22 00 02 22 20 00 00 22 20 00 00 22 20 00 00  "".." .." .." ..
+0ea0: 22 20 00 00 22 20 00 00 22 20 00 00 22 24 00 04  " .." .." .."$..
+0eb0: 22 22 10 12 22 22 20 22 22 22 20 22 22 22 20 22  "".."" """ """ "
+0ec0: 22 22 20 22 22 22 20 22 22 22 20 22 22 22 50 22  "" """ """ """P"
+0ed0: 22 22 00 22 22 20 00 02 22 20 00 02 22 20 00 02  ""."" .." .." ..
+0ee0: 22 20 00 02 22 20 00 02 22 20 00 02 22 20 00 02  " .." .." .." ..
+0ef0: 22 20 00 02 22 20 00 00 22 20 00 00 22 20 00 00  " .." .." .." ..
+0f00: 22 20 00 00 22 20 00 00 22 20 00 00 22 20 00 00  " .." .." .." ..
+0f10: 22 20 00 00 22 00 00 00 22 00 00 00 22 00 00 00  " .."..."..."...
+0f20: 22 00 00 00 22 00 00 00 22 00 00 04 22 41 44 12  "..."..."..."AD.
+0f30: 22 22 22 22 02 22 22 03 02 22 22 02 02 22 22 02  """"."".."".."".
+0f40: 02 22 22 02 22 22 22 02 22 22 23 03 22 22 20 00  ."".""".""#."" .
+0f50: 22 22 20 00 22 22 33 33 22 22 22 22 22 22 22 22  "" .""33""""""""
+0f60: 22 22 22 22 22 22 00 00 22 22 00 00 22 22 00 00  """"""..""..""..
+0f70: 22 22 10 01 22 22 00 02 22 22 00 02 22 22 00 02  ""..""..""..""..
+0f80: 22 22 00 02 00 00 00 00 00 00 00 00 41 14 00 00  ""..........A...
+0f90: 22 22 00 00 22 20 00 22 22 23 03 22 22 22 02 22  "".." .""#."""."
+0fa0: 22 22 02 22 22 22 02 22 22 22 42 22 22 22 22 22  ""."""."""B"""""
+0fb0: 32 22 22 22 21 02 22 22 20 02 22 22 20 02 22 22  2"""!."" ."" .""
+0fc0: 20 02 22 22 00 02 22 22 00 02 22 22 00 02 22 22   .""..""..""..""
+0fd0: 00 02 22 22 00 22 22 20 00 22 22 20 00 22 22 20  ..""."" ."" ."" 
+0fe0: 00 22 22 20 00 22 22 20 00 22 22 20 00 22 22 24  ."" ."" ."" .""$
+0ff0: 00 32 22 22 00 01 11 10 00 00 00 00 00 00 00 00  .2""............
+1000: 00 00 00 00 00 02 20 00 00 42 24 40 00 22 22 20  ...... ..B$@."" 
+1010: 11 22 22 30 22 22 33 33 22 22 22 22 22 22 22 22  .""0""33""""""""
+1020: 22 22 22 22 22 22 00 00 22 22 00 00 22 22 00 00  """"""..""..""..
+1030: 32 22 11 01 22 22 20 22 22 22 20 42 22 22 20 04  2".."" """ B"" .
+1040: 22 22 20 00 00 00 00 00 00 00 00 44 41 14 40 22  "" ........DA.@"
+1050: 22 22 30 22 22 22 33 30 22 22 22 23 42 22 22 22  ""0"""30"""#B"""
+1060: 02 22 22 22 00 02 22 22 44 03 32 22 22 00 02 22  ."""..""D.2"".."
+1070: 22 10 12 22 00 00 00 00 00 00 00 00 30 00 00 00  ".."........0...
+1080: 20 00 00 00 22 00 00 00 22 00 00 00 22 00 00 00   ..."..."..."...
+1090: 23 00 00 00 22 22 22 23 41 42 22 22 00 04 22 22  #..."""#AB""..""
+10a0: 00 00 22 22 00 00 22 22 00 00 22 22 00 00 22 22  ..""..""..""..""
+10b0: 00 00 32 22 30 02 22 22 20 02 22 22 20 02 22 22  ..2"0."" ."" .""
+10c0: 20 02 22 22 22 02 22 22 22 02 22 22 22 02 22 22   .""".""".""".""
+10d0: 22 02 22 22 00 00 22 22 00 00 22 22 00 00 22 22  ".""..""..""..""
+10e0: 00 00 22 22 00 00 22 22 00 00 22 22 00 04 22 22  ..""..""..""..""
+10f0: 11 12 22 22 00 02 22 20 00 02 22 20 00 02 22 20  .."".." .." .." 
+1100: 00 02 22 20 00 02 22 20 00 02 22 20 00 02 22 20  .." .." .." .." 
+1110: 00 02 22 20 00 00 00 00 00 00 00 00 00 00 00 03  .." ............
+1120: 00 00 00 02 00 00 00 02 00 00 00 02 00 00 00 02  ................
+1130: 00 00 00 03 00 00 00 02 00 00 00 02 33 33 00 02  ............33..
+1140: 22 22 00 02 22 22 00 02 22 22 00 02 22 22 14 42  "".."".."".."".B
+1150: 22 22 22 22 22 22 00 00 22 22 00 03 22 22 00 32  """""".."".."".2
+1160: 22 22 00 22 22 22 00 22 22 22 00 22 22 22 00 22  ""."""."""."""."
+1170: 22 23 00 22 33 33 22 22 22 22 22 22 22 22 44 22  "#."33""""""""D"
+1180: 22 22 00 22 22 20 00 22 22 30 00 22 22 00 00 22  ""."" .""0."".."
+1190: 22 10 01 22 22 00 02 22 22 00 02 22 22 00 02 22  ".."".."".."".."
+11a0: 22 00 02 22 22 00 00 22 22 00 00 22 22 00 00 22  ".."".."".."".."
+11b0: 22 00 00 32 20 03 22 21 23 02 22 20 22 02 22 20  "..2 ."!#." "." 
+11c0: 22 02 22 20 22 02 22 00 22 42 22 00 22 22 22 00  "." "."."B".""".
+11d0: 22 22 22 00 00 03 32 22 00 32 22 22 03 22 22 24  """...2".2"".""$
+11e0: 02 22 22 00 02 22 20 00 02 22 20 00 02 22 20 00  ."".." .." .." .
+11f0: 02 22 21 01 22 22 20 00 22 22 20 00 42 22 20 00  ."!."" ."" .B" .
+1200: 02 22 20 00 02 22 20 00 02 22 20 00 02 22 20 00  ." .." .." .." .
+1210: 12 22 20 00 00 00 32 22 00 00 01 22 00 00 00 42  ." ...2"..."...B
+1220: 00 00 00 04 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1230: 00 00 00 00 22 22 22 22 22 22 22 21 22 22 22 10  ...."""""""!""".
+1240: 44 44 44 00 00 00 00 00 00 00 00 00 00 00 00 00  DDD.............
+1250: 00 00 00 00 30 00 00 00 00 00 00 00 00 00 00 00  ....0...........
+1260: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1270: 00 00 00 00 00 02 22 22 00 02 22 22 00 02 22 22  ......""..""..""
+1280: 00 04 44 44 00 00 00 00 00 00 00 00 00 00 00 00  ..DD............
+1290: 00 00 00 00 22 22 22 22 22 22 22 22 22 22 22 21  ...."""""""""""!
+12a0: 44 44 44 40 00 00 00 00 00 00 00 00 00 00 00 00  DDD@............
+12b0: 00 00 00 00 22 00 22 22 21 00 22 22 10 00 22 22  ....".""!.""..""
+12c0: 00 00 44 44 00 00 00 00 00 00 00 00 00 00 00 00  ..DD............
+12d0: 00 00 00 00 00 22 22 20 00 22 22 20 00 22 22 20  ....."" ."" ."" 
+12e0: 00 44 44 40 00 00 00 00 00 00 00 00 00 00 00 00  .DD@............
+12f0: 00 00 00 00 02 22 22 00 02 22 22 00 02 22 22 00  ....."".."".."".
+1300: 04 44 44 00 00 00 00 00 00 00 00 00 00 00 00 00  .DD.............
+1310: 00 00 00 00 22 22 00 03 22 22 00 00 22 22 00 00  ....""..""..""..
+1320: 44 44 00 00 00 00 00 00 00 00 00 00 00 00 00 00  DD..............
+1330: 00 00 00 00 22 22 21 22 12 22 22 22 04 12 22 22  ....""!"."""..""
+1340: 00 04 44 44 00 00 00 00 00 00 00 00 00 00 00 00  ..DD............
+1350: 00 00 00 00 22 23 00 22 22 10 00 22 11 00 00 22  ...."#."".."..."
+1360: 00 00 00 44 00 00 00 00 00 00 00 00 00 00 00 00  ...D............
+1370: 00 00 00 00 22 20 00 02 22 20 00 02 22 20 00 02  ...." .." .." ..
+1380: 44 40 00 04 00 00 00 00 00 00 00 00 00 00 00 00  D@..............
+1390: 00 00 00 00 22 20 00 00 22 20 00 00 22 20 00 00  ...." .." .." ..
+13a0: 44 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00  D@..............
+13b0: 00 00 00 00 00 00 02 22 00 00 02 22 00 00 02 22  ......."..."..."
+13c0: 00 00 04 44 00 00 00 00 00 00 00 00 00 00 00 00  ...D............
+13d0: 00 00 00 00 22 22 22 22 22 22 22 22 22 22 22 22  ....""""""""""""
+13e0: 44 44 44 44 00 00 00 00 00 00 00 00 00 00 00 00  DDDD............
+13f0: 00 00 00 00 22 22 30 00 22 11 00 00 14 00 00 00  ....""0.".......
+1400: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1410: 00 00 00 00 22 22 21 32 11 22 22 22 00 12 22 22  ....""!2."""..""
+1420: 00 04 44 44 00 00 00 00 00 00 00 00 00 00 00 00  ..DD............
+1430: 00 00 00 00 22 23 00 00 22 20 00 00 21 40 00 00  ...."#.." ..!@..
+1440: 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  @...............
+1450: 00 00 00 00 02 22 22 23 02 22 22 20 01 22 22 20  .....""#."" ."" 
+1460: 00 44 44 40 00 00 00 00 00 00 00 00 00 00 00 00  .DD@............
+1470: 00 00 00 00 00 03 22 22 00 00 22 22 00 00 41 22  ......""..""..A"
+1480: 00 00 00 44 00 00 00 00 00 00 00 00 00 00 00 00  ...D............
+1490: 00 00 00 00 22 22 22 00 22 22 21 00 22 21 10 00  ....""".""!."!..
+14a0: 44 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00  D@..............
+14b0: 00 00 00 00 02 22 22 12 01 22 22 22 00 41 22 22  .....""..""".A""
+14c0: 00 00 44 44 00 00 00 00 00 00 00 00 00 00 00 00  ..DD............
+14d0: 00 00 00 00 22 22 00 22 22 21 00 12 21 10 00 04  ...."".""!..!...
+14e0: 40 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  @...............
+14f0: 00 00 00 00 22 21 22 22 22 22 22 22 12 22 22 14  ...."!""""""."".
+1500: 04 44 44 00 00 00 00 00 00 00 00 00 00 00 00 00  .DD.............
+1510: 00 00 00 00 20 00 00 00 10 00 00 00 00 00 00 00  .... ...........
+1520: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1530: 00 00 00 00 22 03 22 22 22 00 22 22 22 00 14 22  ....".""".""".."
+1540: 44 00 00 44 00 00 00 00 00 00 00 00 00 00 00 00  D..D............
+1550: 00 00 00 00 22 22 22 22 22 21 22 22 22 10 22 22  ...."""""!""".""
+1560: 44 00 44 44 00 00 00 00 00 00 00 00 00 00 00 00  D.DD............
+1570: 00 00 00 00 00 02 22 20 00 02 22 20 00 02 22 20  ......" .." .." 
+1580: 00 04 44 40 00 00 00 00 00 00 00 00 00 00 00 00  ..D@............
+1590: 00 00 00 00 22 22 22 22 12 22 22 22 04 12 22 22  ....""""."""..""
+15a0: 00 04 44 44 00 00 00 00 00 00 00 00 00 00 00 00  ..DD............
+15b0: 00 00 00 00 22 20 00 22 22 10 00 12 14 00 00 01  ...." ."".......
+15c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+15d0: 00 00 00 00 22 21 32 22 22 22 21 22 22 22 10 22  ...."!2"""!"""."
+15e0: 44 44 00 44 00 00 00 00 00 00 00 00 00 00 00 00  DD.D............
+15f0: 00 00 00 00 22 00 00 02 22 30 00 02 22 20 00 02  ...."..."0.." ..
+1600: 44 40 00 04 00 00 00 00 00 00 00 00 00 00 00 00  D@..............
+1610: 00 00 00 00 22 22 23 00 22 22 20 00 22 22 20 00  ....""#."" ."" .
+1620: 44 44 40 00 00 00 00 00 00 00 00 00 00 00 00 00  DD@.............
+1630: 00 00 00 00 02 22 22 12 01 22 22 22 00 12 22 21  .....""..""".."!
+1640: 00 04 44 40 00 00 00 00 00 00 00 00 00 00 00 00  ..D@............
+1650: 00 00 00 00 22 22 20 00 12 22 20 00 02 22 20 00  ...."" .." .." .
+1660: 04 44 40 00 00 00 00 00 00 00 00 00 00 00 00 00  .D@.............
+1670: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1680: 00 00 00 00 00 00 00 00 00 00 00 66 00 00 00 77  ...........f...w
+1690: 00 00 88 77 00 00 00 00 00 00 00 00 00 00 00 00  ...w............
+16a0: 00 00 00 00 00 00 00 99 00 00 00 77 00 00 66 77  ...........w..fw
+16b0: 00 00 77 77 00 00 77 77 00 08 77 97 00 77 77 00  ..ww..ww..w..ww.
+16c0: 00 77 77 00 99 77 77 00 77 77 77 00 77 77 aa 00  .ww..ww.www.ww..
+16d0: 77 77 00 00 00 00 00 00 00 00 00 00 00 00 00 0a  ww..............
+16e0: 00 00 00 77 00 00 00 77 00 00 99 77 00 00 77 77  ...w...w...w..ww
+16f0: b6 bb 77 77 88 a8 77 77 77 77 77 77 77 77 77 77  ..ww..wwwwwwwwww
+1700: 77 77 77 77 77 77 77 77 77 77 aa aa 77 77 00 00  wwwwwwwwww..ww..
+1710: 77 8a 00 00 77 bb 00 00 77 00 00 00 99 00 00 00  w...w...w.......
+1720: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1730: 00 b6 bb 6b 00 00 00 00 00 00 00 00 00 00 00 00  ...k............
+1740: 00 00 00 00 00 00 00 00 99 79 99 00 77 77 77 00  ............www.
+1750: 77 88 a8 00 00 00 00 00 00 00 00 aa 00 00 00 77  w..............w
+1760: 00 00 aa 77 00 00 77 77 00 00 77 77 00 97 77 77  ...w..ww..ww..ww
+1770: 00 77 77 77 77 77 77 77 77 77 77 66 77 77 77 00  .wwwwwwwwwwfwww.
+1780: 77 99 99 00 77 00 00 00 77 00 00 00 a0 00 00 00  w...w...w.......
+1790: 00 00 00 00 77 00 00 00 6b 00 00 aa 00 00 00 77  ....w...k......w
+17a0: 00 00 aa 77 00 00 77 77 00 00 77 77 00 79 77 77  ...w..ww..ww..ww
+17b0: 00 77 77 77 00 77 77 77 aa 77 77 66 77 77 77 00  .www.www.wwfwww.
+17c0: 77 77 99 00 77 77 00 00 77 77 00 00 77 00 00 00  ww..ww..ww..w...
+17d0: 77 00 00 00 77 00 00 00 66 00 00 00 00 00 00 00  w...w...f.......
+17e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+17f0: 00 00 00 00 bb 77 77 77 77 77 77 77 77 77 77 66  .....wwwwwwwwwwf
+1800: 77 77 77 00 77 77 77 a8 77 77 77 77 77 77 77 77  www.www.wwwwwwww
+1810: 77 77 77 77 bb 77 77 77 77 77 77 77 77 77 77 77  wwww.wwwwwwwwwww
+1820: 77 77 77 77 99 77 77 77 00 77 77 77 00 77 77 77  wwww.www.www.www
+1830: 00 77 77 77 88 00 00 00 00 00 00 00 00 00 00 00  .www............
+1840: 00 00 00 00 a8 00 00 00 77 00 00 00 77 00 00 00  ........w...w...
+1850: 77 00 00 00 77 77 77 77 88 77 77 77 00 77 77 77  w...wwww.www.www
+1860: 00 66 a6 77 00 00 00 77 00 00 00 9b 00 00 00 00  .f.w...w........
+1870: 00 00 00 00 00 00 00 00 bb 00 00 00 77 00 00 00  ............w...
+1880: 77 a6 00 00 77 77 00 00 b9 77 8a 00 00 77 77 00  w...ww...w...ww.
+1890: 00 77 77 00 00 77 77 77 00 88 77 77 00 00 77 77  .ww..www..ww..ww
+18a0: 00 00 77 77 00 00 77 77 00 00 b9 77 00 00 00 77  ..ww..ww...w...w
+18b0: 00 00 00 77 77 00 00 00 77 bb 00 00 77 77 00 00  ...ww...w...ww..
+18c0: 77 77 6a 00 77 77 77 00 77 77 77 00 77 77 77 00  wwj.www.www.www.
+18d0: 77 77 77 00 00 00 00 00 00 00 00 00 00 00 00 00  www.............
+18e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 cc c5  ................
+18f0: 00 00 dd dd 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1900: 00 00 00 00 ee ee ee ee dd dd dd dd dd dd dd dd  ................
+1910: dd dd dd dd 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1920: 00 00 00 00 ee 00 00 00 dd 00 00 00 ef 00 00 00  ................
+1930: 00 00 00 00 00 00 77 77 00 00 77 77 00 00 88 88  ......ww..ww....
+1940: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1950: 00 00 00 00 00 00 00 77 00 00 00 77 00 00 00 77  .......w...w...w
+1960: 00 00 00 77 00 00 00 a6 00 00 00 00 00 00 00 00  ...w............
+1970: 00 00 00 00 77 77 77 00 77 77 77 00 77 77 88 00  ....www.www.ww..
+1980: 77 77 00 00 a6 a6 00 00 00 00 00 00 00 00 00 00  ww..............
+1990: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+19a0: 00 00 00 00 00 00 00 00 00 00 00 00 5c c5 00 00  ............\...
+19b0: dd dd 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+19c0: 00 00 00 00 ec ce ec ec dd dd dd dd ff ef dd dd  ................
+19d0: 00 00 dd dd 00 00 00 00 00 00 00 00 00 00 00 00  ................
+19e0: 00 00 00 00 00 00 00 00 00 00 00 00 cc c5 00 00  ................
+19f0: dd dd 00 00 00 00 dd dd 00 00 00 dd 00 00 00 dd  ................
+1a00: 00 00 00 55 00 00 00 00 00 00 00 00 00 00 00 00  ...U............
+1a10: 00 00 00 00 dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1a20: 55 55 55 dd 00 00 00 dd 00 00 00 cc 00 00 00 00  UUU.............
+1a30: 00 00 00 cc 00 00 00 00 dd dd dd dd dd dd dd dd  ................
+1a40: dd dd dd dd dd dd dd dd cc cc cc cc 00 00 00 00  ................
+1a50: cc cc cc cc 00 00 00 00 dd dd dd dd dd dd dd dd  ................
+1a60: dd dd dd dd dd dd dd dd cc cc cc cc 00 00 00 00  ................
+1a70: cc cc cc 00 00 00 00 00 dd dd dd dd dd dd dd dd  ................
+1a80: dd dd dd dd dd dd dd dd cc cc cc cc 00 00 00 00  ................
+1a90: 00 00 00 00 00 00 00 00 dd dd dd dd dd dd dd dd  ................
+1aa0: dd dd 55 55 dd dd 00 00 cc cc 00 00 00 00 00 00  ..UU............
+1ab0: 00 00 00 00 00 00 00 00 dd dd dd dd dd dd dd dd  ................
+1ac0: 55 55 55 55 00 00 00 00 00 00 00 00 00 00 00 00  UUUU............
+1ad0: 00 00 00 00 00 00 00 05 dd dd dd dd dd dd dd dd  ................
+1ae0: 55 55 55 55 00 00 00 00 00 00 00 00 00 00 00 00  UUUU............
+1af0: 00 00 cc cc dd dd 00 00 00 00 00 00 00 00 00 00  ................
+1b00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1b10: cc 00 00 00 00 00 dd dd 00 00 00 dd 00 00 00 dd  ................
+1b20: 00 00 00 dd 00 00 00 dd 00 00 ee dd 00 00 dd dd  ................
+1b30: 00 cc dd dd dd dd 00 00 dd dd dd 00 dd dd dd 00  ................
+1b40: dd dd dd 00 dd dd dd 00 dd dd dd 00 dd dd dd 00  ................
+1b50: dd dd ee 00 00 00 00 dd 00 00 00 fd 00 00 00 00  ................
+1b60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1b70: 00 00 00 00 dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1b80: dd dd dd dd 55 55 55 dd 00 00 00 dd 00 00 00 cc  ....UUU.........
+1b90: 00 00 00 00 dd dd dd 00 dd dd dd 55 dd dd dd dd  ...........U....
+1ba0: dd dd dd dd dd dd dd dd dd dd dd dd cc cc cc cc  ................
+1bb0: 00 00 00 00 00 00 00 00 55 55 55 55 dd dd dd dd  ........UUUU....
+1bc0: dd dd dd dd dd dd dd dd dd dd dd dd cc cc cc cc  ................
+1bd0: 00 00 00 00 00 00 00 00 55 55 55 55 dd dd dd dd  ........UUUU....
+1be0: dd dd dd dd dd 55 55 55 dd 00 00 00 cc 00 00 00  .....UUU........
+1bf0: 00 00 00 00 00 00 dd dd 55 50 df fd dd dd 00 00  ........UP......
+1c00: dd dd 00 00 55 55 00 00 00 00 00 00 00 00 00 00  ....UU..........
+1c10: 00 00 00 00 dd 00 00 00 fd 00 00 00 00 00 00 00  ................
+1c20: 00 00 00 00 00 00 00 ff 00 00 00 dd 00 00 ee dd  ................
+1c30: 00 00 dd dd 00 dd dd dd 05 dd dd dd dd dd dd dd  ................
+1c40: dd dd dd dd dd dd 55 55 dd dd 00 00 cc cc 00 00  ......UU........
+1c50: 00 00 00 00 dd dd 00 00 fd dd 00 00 00 00 00 00  ................
+1c60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1c70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1c80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1c90: ee ee ee ee 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1ca0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1cb0: ee 00 00 00 00 00 00 00 00 00 00 00 00 55 55 55  .............UUU
+1cc0: 00 dd dd dd 00 dd dd dd 00 55 dd dd 00 00 dd dd  .........U......
+1cd0: 00 00 cc cc 00 00 00 00 00 00 00 00 55 55 55 55  ............UUUU
+1ce0: dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1cf0: cc cc cc dd 00 00 00 00 00 00 00 00 55 55 55 55  ............UUUU
+1d00: dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1d10: dd dd dd dd 00 00 00 00 00 00 00 00 55 55 55 55  ............UUUU
+1d20: dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1d30: dd cc cc cc 00 00 00 00 00 00 00 00 55 55 55 00  ............UUU.
+1d40: dd dd dd 00 dd dd dd 00 dd 05 55 00 dd 00 00 00  ..........U.....
+1d50: cc 00 00 00 00 00 ee ee 00 00 00 00 00 00 00 00  ................
+1d60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1d70: 00 00 00 00 00 00 00 00 00 00 cc cc 00 00 dd dd  ................
+1d80: 00 55 dd dd 00 dd dd dd 00 dd dd dd 00 00 00 dd  .U..............
+1d90: 00 00 00 dd dd dd dd dd dd dd dd ee dd dd dd 00  ................
+1da0: dd dd dd 55 dd dd dd dd dd dd dd dd dd dd dd dd  ...U............
+1db0: dd dd dd dd dd 00 00 00 ee 00 00 00 00 00 00 00  ................
+1dc0: 55 00 00 00 dd 00 00 00 dd 00 00 00 dd df ff ff  U...............
+1dd0: dd dd dd dd 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1de0: 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff  ................
+1df0: dd dd dd dd 00 00 00 dd 00 00 00 ee 00 00 00 00  ................
+1e00: 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff  ................
+1e10: dd dd dd dd dd dd dd dd ee ee ee ee 00 00 00 00  ................
+1e20: 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff  ................
+1e30: dd dd dd dd dd 00 00 00 ee 00 00 00 00 00 00 00  ................
+1e40: 00 00 00 00 00 00 00 00 00 00 00 00 ff ff ff ff  ................
+1e50: dd dd dd dd 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1e60: 55 55 55 55 dd dd dd dd dd dd dd dd dd dd dd dd  UUUU............
+1e70: dd dd dd dd 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1e80: 55 55 55 55 dd dd dd dd dd dd dd dd dd dd 00 00  UUUU............
+1e90: dd dd 00 00 00 00 00 00 00 cc cc cc 00 dd dd dd  ................
+1ea0: 55 dd fd ff dd dd 00 00 dd dd 00 00 00 00 00 00  U...............
+1eb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1ec0: 00 00 00 00 00 00 00 00 00 00 00 00 df 00 00 00  ................
+1ed0: dd 00 00 00 00 00 00 cc 00 00 00 00 00 00 00 00  ................
+1ee0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1ef0: 00 00 00 00 cc cc cc cc 00 00 00 00 00 00 00 00  ................
+1f00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1f10: 00 00 00 00 dd dd dd dd dd dd dd dd ee ee ee ee  ................
+1f20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+1f30: 00 00 00 00 dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1f40: dd dd dd dd ff ff dd dd 00 00 dd dd 00 00 dd dd  ................
+1f50: 00 00 05 55 dd dd dd dd dd dd dd dd dd dd dd dd  ...U............
+1f60: dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd dd  ................
+1f70: 55 55 55 55 dd cc cc cc dd 00 00 00 dd cc cc cc  UUUU............
+1f80: dd dd dd dd dd dd dd ff dd dd dd 00 dd dd dd 00  ................
+1f90: 55 55 55 00 cc cc cc cc 00 00 00 00 cc cc cc cc  UUU.............
+1fa0: dd dd dd dd ff ff ff ff 00 00 00 00 00 00 00 00  ................
+1fb0: 00 00 00 00 cc dd ee ee 00 dd dd dd cc dd dd dd  ................
+1fc0: dd dd dd dd ff ff ff ff 00 00 00 00 00 00 00 00  ................
+1fd0: 00 00 00 00 ee ee ee ee dd dd dd dd dd dd ee ee  ................
+1fe0: dd dd 00 00 ff ff 00 00 00 00 00 00 00 00 00 00  ................
+1ff0: 00 00 00 00 dd 00 00 00 dd 00 00 00 ee 00 00 00  ................
+2000: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2020: 00 00 00 00 99 99 99 99 77 77 77 77 77 77 77 77  ........wwwwwwww
+2030: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77  wwwwwwwwwwwwwwww
+2040: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77  wwwwwwwwwwwwwwww
+2050: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77  wwwwwwwwwwwwwwww
+2060: 77 77 77 77 77 77 77 77 88 88 87 77 00 00 07 77  wwwwwwww...w...w
+2070: 00 00 07 77 77 77 77 77 77 77 77 77 77 77 77 77  ...wwwwwwwwwwwww
+2080: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77 78  wwwwwwwwwwwwwwwx
+2090: 77 77 77 a0 77 77 77 77 77 77 77 77 77 77 77 77  www.wwwwwwwwwwww
+20a0: 77 77 77 77 77 77 77 77 88 88 77 77 00 00 87 77  wwwwwwww..ww...w
+20b0: 00 00 07 77 77 77 77 77 77 77 77 77 77 77 77 77  ...wwwwwwwwwwwww
+20c0: 77 77 77 77 77 77 77 77 77 77 77 88 77 77 77 00  wwwwwwwwwww.www.
+20d0: 77 77 77 b0 77 77 77 77 77 77 77 77 77 77 77 77  www.wwwwwwwwwwww
+20e0: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77 78  wwwwwwwwwwwwwwwx
+20f0: 77 77 77 80 77 77 77 77 77 77 77 77 77 77 77 77  www.wwwwwwwwwwww
+2100: 77 77 77 77 77 77 77 77 88 88 88 77 00 00 09 77  wwwwwwww...w...w
+2110: 00 00 67 77 77 77 77 77 77 77 77 77 77 77 77 77  ..gwwwwwwwwwwwww
+2120: 77 77 77 77 77 77 77 77 77 77 77 78 77 77 77 80  wwwwwwwwwwwxwww.
+2130: 77 77 78 00 77 77 77 77 77 77 77 77 77 77 77 77  wwx.wwwwwwwwwwww
+2140: 77 77 77 77 77 77 77 77 00 00 00 00 00 00 00 00  wwwwwwww........
+2150: 00 00 00 00 77 77 77 77 77 77 77 77 77 77 77 77  ....wwwwwwwwwwww
+2160: 77 77 77 77 77 77 77 77 00 00 00 00 00 00 00 00  wwwwwwww........
+2170: 00 00 00 06 77 77 77 77 77 77 77 77 77 77 77 77  ....wwwwwwwwwwww
+2180: 77 77 77 77 77 77 77 77 07 00 00 00 97 00 00 00  wwwwwwww........
+2190: 77 00 00 00 77 77 77 77 77 77 77 77 77 77 77 77  w...wwwwwwwwwwww
+21a0: 77 77 77 77 77 77 77 77 00 87 77 70 00 08 77 70  wwwwwwww..wp..wp
+21b0: 00 00 87 70 77 77 77 77 77 77 77 77 77 77 77 77  ...pwwwwwwwwwwww
+21c0: 77 77 77 77 77 77 77 77 00 77 00 00 00 77 00 00  wwwwwwww.w...w..
+21d0: 00 77 00 00 77 77 77 77 77 77 77 77 77 77 77 77  .w..wwwwwwwwwwww
+21e0: 77 77 77 77 77 77 77 77 77 77 77 77 87 77 77 77  wwwwwwwwwwww.www
+21f0: 08 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77  .wwwwwwwwwwwwwww
+2200: 77 77 77 77 77 77 77 77 77 00 07 00 77 00 07 00  wwwwwwwww...w...
+2210: 77 00 07 00 77 77 77 77 77 77 77 77 77 77 77 77  w...wwwwwwwwwwww
+2220: 77 77 77 77 77 77 77 77 00 00 00 08 00 00 00 00  wwwwwwww........
+2230: 00 00 00 00 77 77 77 77 77 77 77 77 77 77 77 77  ....wwwwwwwwwwww
+2240: 77 77 77 77 77 77 77 77 77 77 77 70 87 77 77 80  wwwwwwwwwwwp.ww.
+2250: 08 77 78 00 77 77 77 77 77 77 77 77 77 77 77 77  .wx.wwwwwwwwwwww
+2260: 77 77 77 77 77 77 77 77 07 00 00 00 07 00 00 00  wwwwwwww........
+2270: b7 00 00 00 77 77 77 77 77 77 77 77 77 77 77 77  ....wwwwwwwwwwww
+2280: 77 77 77 77 77 77 77 77 00 00 77 77 00 00 77 77  wwwwwwww..ww..ww
+2290: 00 00 87 77 00 00 07 77 00 00 07 77 00 00 07 77  ...w...w...w...w
+22a0: 00 00 07 77 00 00 07 77 00 00 07 77 00 00 07 77  ...w...w...w...w
+22b0: 00 00 07 77 77 77 7a 00 77 77 70 00 77 77 b0 00  ...www..wwp.ww..
+22c0: 77 79 00 00 77 70 00 00 77 70 00 00 77 80 00 00  w...wp..wp..w...
+22d0: 77 00 00 00 00 00 0a 77 00 00 00 67 00 00 00 07  w......w...g....
+22e0: 08 00 00 09 07 00 00 00 77 70 00 00 08 00 00 00  ........wp......
+22f0: 00 00 00 00 77 77 77 76 77 77 77 77 77 77 77 77  ....wwwvwwwwwwww
+2300: 77 77 77 77 77 77 77 77 07 77 77 77 07 77 77 77  wwwwwwww.www.www
+2310: 08 77 77 77 00 00 06 77 00 00 00 77 80 00 00 b7  .www...w...w....
+2320: 78 00 00 09 77 00 00 00 77 00 00 00 77 90 00 00  x...w...w...w...
+2330: 77 79 00 00 77 77 77 00 77 77 76 00 77 77 70 00  w...www.wwv.wwp.
+2340: 77 77 90 00 77 77 00 00 77 70 00 00 07 70 00 00  ww..ww..wp...p..
+2350: 08 80 00 00 00 00 77 77 00 0a 77 77 00 07 77 77  ......ww..ww..ww
+2360: 00 87 77 77 00 77 77 77 07 77 77 77 07 77 77 77  ..ww.www.www.www
+2370: 97 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77  .wwwwwwwwwwwwwww
+2380: 77 77 77 77 77 77 77 77 07 77 77 77 07 77 77 77  wwwwwwww.www.www
+2390: 08 77 77 77 77 77 a0 00 77 77 00 00 77 77 00 00  .wwwww..ww..ww..
+23a0: 77 77 00 00 77 77 00 00 77 77 00 00 77 77 00 00  ww..ww..ww..ww..
+23b0: 77 77 00 00 00 00 00 00 00 08 88 88 08 87 77 77  ww............ww
+23c0: 07 77 77 77 07 77 77 77 77 77 77 77 77 77 77 77  .www.wwwwwwwwwww
+23d0: 77 77 77 77 00 00 00 67 88 88 88 77 77 77 77 77  wwww...g...wwwww
+23e0: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 70 00  wwwwwwwwwwwwwwp.
+23f0: 77 77 70 00 77 00 00 00 77 00 00 aa 77 00 00 77  wwp.w...w...w..w
+2400: 77 00 00 79 77 00 00 70 77 00 00 70 07 00 00 70  w...w..pw..p...p
+2410: 07 00 00 79 00 00 00 00 aa aa aa aa 77 77 77 77  ............wwww
+2420: 99 99 99 99 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2430: 00 00 00 00 00 00 07 70 00 00 07 70 00 00 07 70  .......p...p...p
+2440: 00 00 07 70 00 00 07 70 00 00 07 70 00 00 77 70  ...p...p...p..wp
+2450: 00 09 77 70 00 77 00 00 00 77 00 00 00 77 00 00  ..wp.w...w...w..
+2460: 00 77 00 08 00 77 00 07 00 77 00 07 00 77 00 07  .w...w...w...w..
+2470: 00 77 00 07 00 a7 77 77 00 06 77 77 00 00 b7 77  .w....ww..ww...w
+2480: 00 00 09 77 00 00 00 77 70 00 00 07 77 00 00 00  ...w...wp...w...
+2490: 77 90 00 00 77 00 07 00 77 00 07 00 77 00 07 00  w...w...w...w...
+24a0: 77 00 07 00 77 00 07 00 77 00 07 00 77 00 07 00  w...w...w...w...
+24b0: 87 00 07 00 00 00 00 00 00 aa aa aa 00 77 77 77  .............www
+24c0: 00 77 77 77 00 77 77 77 00 77 77 77 00 77 77 77  .www.www.www.www
+24d0: 00 77 77 77 00 00 00 00 aa aa 00 00 77 77 88 00  .www........ww..
+24e0: 77 77 77 00 77 77 77 00 77 77 77 70 77 77 77 70  www.www.wwwpwwwp
+24f0: 77 77 77 70 00 a7 70 00 00 07 70 00 00 07 b0 00  wwwp..p...p.....
+2500: 00 07 00 00 00 07 00 00 00 07 00 00 00 07 00 00  ................
+2510: 00 07 00 00 00 00 00 00 00 08 aa a8 00 87 77 77  ..............ww
+2520: 08 77 77 77 07 77 77 77 00 00 00 00 00 00 00 00  .www.www........
+2530: 00 00 00 00 00 00 00 00 aa aa aa aa 77 77 77 77  ............wwww
+2540: 77 77 77 77 77 77 77 77 00 00 00 00 00 00 00 07  wwwwwwww........
+2550: 00 00 00 b7 77 00 00 00 77 00 00 aa 77 00 00 77  ....w...w...w..w
+2560: 77 00 00 79 77 00 00 70 77 00 00 70 77 00 00 70  w...w..pw..pw..p
+2570: 77 00 00 79 00 00 07 77 00 00 07 77 00 00 07 77  w......w...w...w
+2580: 00 00 07 77 00 00 07 77 00 00 07 77 00 00 77 77  ...w...w...w..ww
+2590: 00 09 77 77 77 77 77 77 77 77 77 77 77 77 77 66  ..wwwwwwwwwwwwwf
+25a0: 77 77 7b 00 77 79 90 00 77 70 00 00 77 00 00 00  ww..w...wp..w...
+25b0: 77 77 77 77 77 77 77 77 77 77 77 77 66 66 66 66  wwwwwwwwwwwwffff
+25c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+25d0: 77 77 77 77 00 00 07 77 00 00 07 77 00 00 07 77  wwww...w...w...w
+25e0: 00 00 07 7b 00 00 87 90 00 00 77 00 00 07 77 00  ..........w...w.
+25f0: 77 77 77 77 78 00 00 00 a0 00 00 66 00 00 00 77  wwwwx......f...w
+2600: 00 00 08 77 00 00 87 77 00 00 77 77 00 00 77 77  ...w...w..ww..ww
+2610: 77 77 77 77 00 00 00 00 66 66 60 00 77 77 7a 00  wwww....ff`.ww..
+2620: 77 77 77 80 77 77 77 70 77 77 77 70 77 77 77 77  www.wwwpwwwpwwww
+2630: 77 77 77 77 00 87 77 77 00 07 77 77 00 06 77 77  wwww..ww..ww..ww
+2640: 00 00 b7 77 00 00 07 77 00 00 07 77 00 00 00 77  ...w...w...w...w
+2650: 77 77 77 77 77 77 00 00 77 77 60 00 77 77 70 00  wwwwww..ww`.wwp.
+2660: 77 77 78 00 77 77 77 80 77 77 77 70 77 77 77 70  wwx.www.wwwpwwwp
+2670: 77 77 77 77 00 00 00 0b 00 00 00 07 00 00 00 a7  wwww............
+2680: 00 00 00 77 00 00 08 77 00 00 07 77 00 00 77 77  ...w...w...w..ww
+2690: 77 97 77 77 77 77 77 77 77 77 77 77 77 77 77 77  w.wwwwwwwwwwwwww
+26a0: 77 77 77 7b 77 77 77 90 77 77 77 00 77 77 77 00  www.www.www.www.
+26b0: 77 77 77 77 00 87 77 77 00 07 77 77 00 06 77 77  wwww..ww..ww..ww
+26c0: 00 00 b7 77 00 00 07 79 00 00 07 70 00 00 00 77  ...w.......p...w
+26d0: 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77 77  wwwwwwwwwwwwwwww
+26e0: 77 77 77 77 99 99 99 99 00 00 00 00 00 00 00 00  wwww............
+26f0: 77 97 77 77 77 77 00 00 77 77 00 00 77 77 00 00  w.wwww..ww..ww..
+2700: 77 77 80 00 99 97 70 00 00 09 70 00 00 00 77 00  ww....p...p...w.
+2710: 77 77 77 77 87 77 77 77 07 77 77 77 06 67 77 77  wwww.www.www.gww
+2720: 00 0b bb bb 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2730: 77 77 77 77 77 77 70 00 77 77 70 00 77 77 70 00  wwwwwwp.wwp.wwp.
+2740: bb bb b0 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2750: 77 77 77 77 07 00 00 77 07 00 00 77 07 00 00 77  wwww...w...w...w
+2760: 07 00 00 77 07 00 00 77 07 00 00 77 07 00 00 77  ...w...w...w...w
+2770: 77 77 77 77 b0 00 00 00 76 00 00 00 77 a0 00 00  wwww....v...w...
+2780: 77 78 00 00 77 77 80 00 77 77 70 00 77 77 77 00  wx..ww..wwp.www.
+2790: 77 77 77 77 0b b7 77 70 0a 77 77 70 00 67 77 70  wwww..wp.wwp.gwp
+27a0: 00 0b 77 70 00 00 97 70 00 00 09 70 00 00 00 70  ..wp...p...p...p
+27b0: 77 77 77 77 00 77 00 07 00 77 00 07 00 77 00 07  wwww.w...w...w..
+27c0: 00 77 00 07 00 77 00 07 00 77 00 07 00 77 00 07  .w...w...w...w..
+27d0: 77 77 77 77 77 7b 00 00 77 77 60 00 77 77 7a 00  wwwww...ww`.ww..
+27e0: 77 77 77 80 77 77 77 78 77 77 77 77 77 77 77 77  www.wwwxwwwwwwww
+27f0: 77 77 77 77 08 00 07 00 00 00 07 00 00 00 07 00  wwww............
+2800: 00 00 07 00 00 00 07 00 00 00 07 00 70 00 07 00  ............p...
+2810: 77 97 77 77 00 77 77 77 00 77 77 77 00 77 77 77  w.ww.www.www.www
+2820: 00 bb bb bb 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2830: 97 77 77 77 77 77 77 80 77 77 7a 00 77 77 60 00  .wwwwww.ww..ww`.
+2840: bb bb 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2850: 77 77 77 77 00 07 00 00 00 07 00 00 00 07 60 00  wwww..........`.
+2860: 00 87 70 00 00 77 78 00 00 77 77 00 07 77 77 70  ..p..wx..ww..wwp
+2870: 77 77 77 77 0b bb bb bb 0a 77 77 77 00 67 77 77  wwww.....www.gww
+2880: 00 0b bb bb 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2890: 77 77 77 77 bb bb bb 77 77 77 77 77 77 77 77 77  wwww...wwwwwwwww
+28a0: bb bb bb bb 00 00 00 00 00 00 00 00 00 00 00 00  ................
+28b0: 77 97 77 77 77 00 00 77 77 00 00 77 77 00 00 77  w.www..ww..ww..w
+28c0: b7 00 00 77 07 00 00 77 07 00 00 77 77 00 00 77  ...w...w...ww..w
+28d0: 77 77 77 77 bb b7 77 77 a7 77 77 77 06 77 77 77  wwww..ww.www.www
+28e0: 00 b7 77 77 00 09 77 77 00 00 77 77 00 00 07 77  ..ww..ww..ww...w
+28f0: 77 77 77 77 00 00 04 60 00 00 00 00 00 00 00 00  wwww...`........
+2900: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2910: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2920: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2930: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2940: 00 00 00 00 00 00 00 00 00 01 00 02 00 03 00 04  ................
+2950: 00 05 00 06 00 07 00 08 00 09 00 00 00 00 00 00  ................
+2960: 00 00 00 0a 00 0b 00 0c 00 00 00 00 00 00 00 0d  ................
+2970: 00 00 00 00 00 00 00 00 00 00 00 00 00 0e 00 0f  ................
+2980: 00 10 00 00 00 00 00 00 00 00 00 11 00 12 00 00  ................
+2990: 00 00 00 00 00 00 00 00 00 13 00 14 00 15 00 16  ................
+29a0: 00 17 00 18 00 19 00 1a 00 1b 00 1c 00 1d 00 1e  ................
+29b0: 00 1f 00 20 00 21 00 22 00 23 00 24 00 25 00 26  ... .!.".#.$.%.&
+29c0: 00 27 00 28 00 29 00 2a 00 2b 00 2c 00 16 00 2d  .'.(.).*.+.,...-
+29d0: 00 2e 00 2f 00 30 00 31 00 00 00 32 00 33 00 34  .../.0.1...2.3.4
+29e0: 00 35 00 36 00 37 00 38 00 39 00 3a 00 3b 00 16  .5.6.7.8.9.:.;..
+29f0: 00 3c 00 3d 00 19 00 1a 00 3e 00 3f 00 40 00 41  .<.=.....>.?.@.A
+2a00: 00 42 00 20 00 43 00 44 00 45 00 46 00 47 00 48  .B. .C.D.E.F.G.H
+2a10: 00 49 00 4a 00 4b 00 4c 00 4d 00 4e 00 16 00 4f  .I.J.K.L.M.N...O
+2a20: 00 50 00 51 00 19 00 52 00 53 00 54 00 55 00 56  .P.Q...R.S.T.U.V
+2a30: 00 57 00 58 00 59 00 5a 00 5b 00 5c 00 5d 00 5e  .W.X.Y.Z.[.\.].^
+2a40: 00 5f 00 60 00 61 00 62 00 63 00 64 00 65 00 66  ._.`.a.b.c.d.e.f
+2a50: 00 67 00 68 00 69 00 6a 00 6b 00 6c 00 6d 00 5e  .g.h.i.j.k.l.m.^
+2a60: 00 6e 00 6f 00 70 00 71 00 72 00 73 00 5e 00 68  .n.o.p.q.r.s.^.h
+2a70: 00 74 00 75 00 61 00 76 00 00 00 77 00 78 00 79  .t.u.a.v...w.x..
+2a80: 00 7a 00 7b 00 7c 00 7d 00 00 00 00 00 00 00 00  ................
+2a90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2aa0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ab0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ac0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ad0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ae0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2af0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2b90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ba0: 00 00 00 7e 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2bb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2bc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2bd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2be0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2bf0: 00 7f 00 80 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 81  ................
+2c40: 00 82 00 83 00 84 00 00 00 00 00 00 00 00 00 00  ................
+2c50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2c80: 00 00 00 00 00 00 00 00 00 00 00 00 00 85 00 86  ................
+2c90: 00 87 00 88 00 89 00 00 00 00 00 00 00 00 00 00  ................
+2ca0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2cb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2cc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2cd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 8a 00 00  ................
+2ce0: 00 8b 00 8c 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2cf0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d10: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d20: 00 00 00 00 00 00 00 00 00 00 00 00 00 8d 00 8e  ................
+2d30: 00 8f 00 90 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2d70: 00 00 00 00 00 00 00 91 00 92 00 93 00 00 00 94  ................
+2d80: 00 95 00 96 00 00 00 97 00 98 00 99 00 00 00 00  ................
+2d90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2da0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2db0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2dc0: 00 00 00 00 00 00 00 9a 00 9b 00 9c 00 9d 00 9e  ................
+2dd0: 00 9f 00 a0 00 a1 00 a2 00 a3 00 a4 00 00 00 00  ................
+2de0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2df0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2e00: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2e10: 00 00 00 00 00 00 00 00 00 a5 00 a6 00 a7 00 a8  ................
+2e20: 00 a8 00 a9 00 aa 00 ab 00 ac 00 ad 00 00 00 00  ................
+2e30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2e40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2e50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2e60: 00 00 00 00 00 00 00 ae 00 af 00 b0 00 b1 00 b2  ................
+2e70: 00 b2 00 b3 00 b4 00 b5 00 00 00 00 00 00 00 00  ................
+2e80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2e90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ea0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2eb0: 00 00 00 00 00 b6 00 b7 00 b8 00 b9 00 ba 00 bb  ................
+2ec0: 00 bb 00 bc 00 bd 00 be 00 bf 00 c0 00 00 00 00  ................
+2ed0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ee0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ef0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f00: 00 00 00 00 00 c1 00 c2 00 c3 00 c4 00 c5 00 c5  ................
+2f10: 00 c5 00 c6 00 c7 00 c8 00 c9 00 ca 00 00 00 00  ................
+2f20: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f30: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f40: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f50: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f60: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f70: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f80: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2f90: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2fa0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2fb0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2fc0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2fd0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2fe0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+2ff0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3000: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3010: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3020: 00 00 00 00 00 00 00 00 00 cb 00 cb 00 cb 00 cb  ................
+3030: 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb  ................
+3040: 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb  ................
+3050: 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb  ................
+3060: 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb 00 cb  ................
+3070: 00 cb 00 cb 00 cb 00 cb 00 cc 00 cc 00 cc 00 cc  ................
+3080: 00 cc 00 cc 00 cc 00 cd 00 ce 00 cf 00 d0 00 cf  ................
+3090: 00 d1 00 d2 00 ce 00 cf 00 cc 00 cc 00 d3 00 d4  ................
+30a0: 00 d5 00 d6 00 d4 00 d7 00 d8 00 d9 00 da 00 d4  ................
+30b0: 00 db 00 dc 00 d4 00 d4 00 dd 00 d4 00 de 00 cc  ................
+30c0: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+30d0: 00 cc 00 cc 00 cc 00 df 00 e0 00 e1 00 e2 00 e3  ................
+30e0: 00 e4 00 e5 00 e0 00 e1 00 e6 00 cc 00 e7 00 e8  ................
+30f0: 00 e9 00 ea 00 eb 00 ec 00 ed 00 ee 00 ef 00 f0  ................
+3100: 00 f1 00 f2 00 f3 00 f4 00 f5 00 eb 00 f6 00 cc  ................
+3110: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+3120: 00 cc 00 f7 00 f8 00 f9 00 fa 00 fb 00 fc 00 fd  ................
+3130: 00 fe 00 ff 00 fa 00 fb 01 00 01 01 01 02 01 03  ................
+3140: 01 04 01 05 01 06 01 07 01 08 01 09 01 0a 01 0b  ................
+3150: 01 0c 01 0d 01 0e 01 0f 01 10 01 06 01 11 00 cc  ................
+3160: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+3170: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+3180: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+3190: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+31a0: 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc 00 cc  ................
+31b0: 00 cc 00 cc 00 cc 00 cc 00 00 00 10 0e ee 04 44  ...............D
+31c0: 00 00 08 88 02 22 0e cc 06 6e 00 0e 0a ae 02 2e  ....."...n......
+31d0: 08 8e 04 4e 0e aa 0e 00 0e 66 0e 22 00 00 00 40  ...N.....f."...@
+31e0: 01 10 00 00 01 10 00 00 01 11 00 00 01 11 00 00  ................
+31f0: 01 12 11 00 01 12 33 10 01 12 33 10 01 12 33 31  ......3...3...31
+3200: 01 12 33 31 01 12 33 33 01 12 33 33 01 12 22 33  ..31..33..33.."3
+3210: 01 12 22 33 01 12 22 33 01 12 22 33 01 12 22 33  .."3.."3.."3.."3
+3220: 01 12 22 23 01 12 22 23 01 12 22 22 01 12 22 22  .."#.."#..""..""
+3230: 01 12 22 22 01 12 11 11 01 12 11 11 01 11 11 01  ..""............
+3240: 01 11 11 01 01 11 00 00 01 11 00 00 01 10 00 00  ................
+3250: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3260: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3270: 00 00 00 00 00 00 00 00 00 00 00 00 10 00 00 00  ................
+3280: 10 00 00 00 31 00 00 00 31 00 00 00 33 11 00 00  ....1...1...3...
+3290: 33 33 10 00 33 33 10 00 33 33 31 10 33 33 31 10  33..33..331.331.
+32a0: 33 33 33 31 33 33 33 31 23 11 11 11 23 11 11 11  33313331#...#...
+32b0: 23 11 00 00 13 33 10 00 13 33 10 00 11 33 10 00  #....3...3...3..
+32c0: 11 33 10 00 01 33 31 10 01 33 31 10 01 11 31 10  .3...31..31...1.
+32d0: 00 11 31 10 00 11 31 10 00 11 11 10 00 11 11 10  ..1...1.........
+32e0: 00 00 00 04 0c ae 00 00 0c cc 0e ee 00 00 00 40  ...............@
+32f0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3300: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3310: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3320: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3330: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3340: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3350: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3360: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3370: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3380: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3390: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+33a0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+33b0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+33c0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+33d0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+33e0: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+33f0: 04 14 38 3c 06 6c 00 00 00 00 ff 03 81 3f 00 02  ..8<.l.......?..
+3400: 01 00 00 ff ff 00 00 80 9f bf df ff              ............
+3424: 01 11 11 00 11 00 01 10 11 00 01 10 11 00 01 10  ................
+3434: 11 11 11 10 11 00 01 10 11 00 01 10 00 00 00 00  ................
+3444: 11 11 11 00 11 00 01 10 11 00 01 10 11 11 11 00  ................
+3454: 11 00 01 10 11 00 01 10 11 11 11 00 00 00 00 00  ................
+3464: 11 11 11 10 11 00 01 10 11 00 01 10 11 00 00 00  ................
+3474: 11 00 01 10 11 00 01 10 11 11 11 10 00 00 00 00  ................
+3484: 11 11 11 00 11 00 01 10 11 00 01 10 11 00 01 10  ................
+3494: 11 00 01 10 11 00 01 10 11 11 11 00 00 00 00 00  ................
+34a4: 11 11 11 10 11 00 00 00 11 00 00 00 11 11 11 00  ................
+34b4: 11 00 00 00 11 00 00 00 11 11 11 10 00 00 00 00  ................
+34c4: 11 11 11 10 11 00 00 00 11 00 00 00 11 11 11 00  ................
+34d4: 11 00 00 00 11 00 00 00 11 00 00 00 00 00 00 00  ................
+34e4: 11 11 11 10 11 00 01 10 11 00 00 00 11 00 11 10  ................
+34f4: 11 00 01 10 11 00 01 10 11 11 11 10 00 00 00 00  ................
+3504: 11 00 01 10 11 00 01 10 11 00 01 10 11 11 11 10  ................
+3514: 11 00 01 10 11 00 01 10 11 00 01 10 00 00 00 00  ................
+3524: 00 11 10 00 00 11 10 00 00 11 10 00 00 11 10 00  ................
+3534: 00 11 10 00 00 11 10 00 00 11 10 00 00 00 00 00  ................
+3544: 00 00 01 10 00 00 01 10 00 00 01 10 00 00 01 10  ................
+3554: 00 00 01 10 01 10 01 10 01 11 11 10 00 00 00 00  ................
+3564: 11 00 01 10 11 00 11 00 11 11 10 00 11 11 10 00  ................
+3574: 11 00 11 00 11 00 01 10 11 00 01 10 00 00 00 00  ................
+3584: 01 10 00 00 01 10 00 00 01 10 00 00 01 10 00 00  ................
+3594: 01 10 00 00 01 10 00 00 01 11 11 10 00 00 00 00  ................
+35a4: 11 00 01 10 11 10 11 10 11 11 11 10 11 01 01 10  ................
+35b4: 11 00 01 10 11 00 01 10 11 00 01 10 00 00 00 00  ................
+35c4: 11 00 01 10 11 10 01 10 11 11 01 10 11 01 11 10  ................
+35d4: 11 00 11 10 11 00 01 10 11 00 01 10 00 00 00 00  ................
+35e4: 11 11 11 10 11 00 01 10 11 00 01 10 11 00 01 10  ................
+35f4: 11 00 01 10 11 00 01 10 11 11 11 10 00 00 00 00  ................
+3604: 11 11 11 10 11 00 01 10 11 00 01 10 11 11 11 10  ................
+3614: 11 00 00 00 11 00 00 00 11 00 00 00 00 00 00 00  ................
+3624: 11 11 11 10 11 00 01 10 11 00 01 10 11 00 01 10  ................
+3634: 11 00 11 10 11 00 11 10 11 11 11 10 00 00 00 00  ................
+3644: 11 11 11 10 11 00 01 10 11 00 01 10 11 11 11 00  ................
+3654: 11 00 01 10 11 00 01 10 11 00 01 10 00 00 00 00  ................
+3664: 11 11 11 10 11 00 01 10 11 00 00 00 11 11 11 10  ................
+3674: 00 00 01 10 11 00 01 10 11 11 11 10 00 00 00 00  ................
+3684: 11 11 11 10 00 11 10 00 00 11 10 00 00 11 10 00  ................
+3694: 00 11 10 00 00 11 10 00 00 11 10 00 00 00 00 00  ................
+36a4: 11 00 01 10 11 00 01 10 11 00 01 10 11 00 01 10  ................
+36b4: 11 00 01 10 11 00 01 10 11 11 11 10 00 00 00 00  ................
+36c4: 11 00 01 10 11 00 01 10 11 00 01 10 11 00 01 10  ................
+36d4: 01 10 11 00 00 11 10 00 00 01 00 00 00 00 00 00  ................
+36e4: 11 00 01 10 11 00 01 10 11 00 01 10 11 01 01 10  ................
+36f4: 11 11 11 10 11 10 11 10 11 00 01 10 00 00 00 00  ................
+3704: 11 00 01 10 11 00 01 10 11 10 11 10 01 11 11 00  ................
+3714: 11 10 11 10 11 00 01 10 11 00 01 10 00 00 00 00  ................
+3724: 11 00 01 10 11 00 01 10 11 00 01 10 01 10 11 00  ................
+3734: 00 11 10 00 00 11 10 00 00 11 10 00 00 00 00 00  ................
+3744: 11 11 11 10 00 00 11 10 00 01 11 00 00 11 10 00  ................
+3754: 01 11 00 00 11 10 00 00 11 11 11 10 00 00 00 00  ................
+3764: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+3774: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00  ................
+
+
+Program Info:
+                         LABEL ADDRESS  SCOPE
+                        extint 00000200 0
+                         hsync 00000200 0
+                         vsync 00000200 0
+                     interrupt 00000200 0
+                         start 00000202 0
+               start_init_tmss 00000230 0
+              start_video_init 0000023e 0
+                start_wait_dma 00000252 0
+               start_init_cram 00000268 0
+              start_init_vsram 00000276 0
+                start_init_psg 00000284 0
+                          main 000002d2 0
+                       main_34 0000031c 0
+                       main_49 0000037a 0
+                       main_90 000003da 0
+                      main_125 0000042e 0
+                      main_159 0000047e 0
+                      main_194 000004d2 0
+                      main_208 000004ee 0
+                      main_226 0000050e 0
+                      main_241 0000052a 0
+                      main_261 00000552 0
+                      main_273 00000564 0
+                      main_282 00000574 0
+                      main_287 0000057c 0
+                      main_296 00000588 0
+                      main_299 0000058c 0
+                      main_311 000005aa 0
+                      main_316 000005b4 0
+           PlayBackgroundMusic 000005b8 0
+res_images_ImgJavaGrinder_draw 000005ba 0
+     res_sprites_SprArrow_draw 000005ee 0
+   res_sprites_SprArrow_setTo0 00000672 0
+    res_sprites_SprArrow_clear 00000694 0
+_res_images_ImgJavaGrinder_pattern 000006b4 0
+_res_images_ImgJavaGrinder_image 000028f8 0
+_res_images_ImgJavaGrinder_palette 000031bc 0
+ _res_sprites_SprArrow_pattern 000031e0 0
+ _res_sprites_SprArrow_palette 000032e4 0
+_res_sprites_SprArrow_clearPattern 000032f0 0
+            vdp_reg_init_table 000033f0 0
+            psg_reg_init_table 00003408 0
+                   _load_fonts 0000340c 0
+              _load_fonts_loop 0000341c 0
+                          font 00003424 0
+                       fontend 00003784 0
+                   _clear_text 00003784 0
+              _clear_text_loop 00003794 0
+            _set_pattern_table 0000379c 0
+       _set_pattern_table_loop 000037ba 0
+               _set_image_data 000037c2 0
+          _set_image_data_loop 000037d0 0
+        _set_image_data_not_40 000037e4 0
+           _set_palette_colors 000037ea 0
+      _set_palette_colors_loop 000037f4 0
+  _set_palette_colors_at_index 000037fc 0
+_set_palette_colors_at_index_loop 0000380c 0
+ -> Total symbols: 57
+
+Include Paths: .
+               /home/mark
+               /usr/local/share/naken_asm/include
+               include
+ Instructions: 386
+   Code Bytes: 1366
+   Data Bytes: 12988
+  Low Address: 0x0000 (0)
+ High Address: 0x3813 (14355)
+
