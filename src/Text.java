@@ -1,4 +1,5 @@
 import net.mikekohn.java_grinder.SegaGenesis;
+
 public class Text {
     static final int MAX_WIDTH = 28;
     static final int MAX_HEIGHT = 40;

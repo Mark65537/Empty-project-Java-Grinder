@@ -1,24 +1,32 @@
 # Находим все файлы .class в папке Images
-SPRITES := $(patsubst %.java,%.class,$(wildcard res/sprites/*.java))
-IMAGES := $(patsubst %.java,%.class,$(wildcard res/images/*.java))
-
+BIN_DIR := bin/
 OUTPUT_DIR := out/
+SRC_DIR := src/
 
-GAME_NAME := "Empty-project"
-# Находим все файлы .class в текущей директории
+# Находим все файлы .class в директориях директории
+SPRITES := $(patsubst %.java,%.class,$(wildcard $(SRC_DIR)res/sprites/*.java))
+IMAGES := $(patsubst %.java,%.class,$(wildcard $(SRC_DIR)res/images/*.java))
+SRC_CLASSES := $(patsubst %.java,%.class,$(wildcard $(SRC_DIR)*.java))
 CURRENT_DIR := $(patsubst %.java,%.class,$(wildcard *.java))
 
-CLASSES= $(SPRITES) $(IMAGES) $(SCRIPT_DIR) $(CURRENT_DIR)#SegaGenesisJavaDemo.class ImginfoScreen.class Imgplus.class 
+# получаем имя текущей директории
+# GAME_NAME := $(shell echo ${PWD##*/})
+GAME_NAME := "Game"
+
+CLASSES= $(SPRITES) $(IMAGES) $(SRC_CLASSES)#SegaGenesisJavaDemo.class ImginfoScreen.class Imgplus.class 
 
 default: $(CLASSES)
 
 grind: $(CLASSES)
-	../../java_grinder Main.class $(OUTPUT_DIR)$(GAME_NAME).asm sega_genesis
+	../../java_grinder $(BIN_DIR)Main.class $(OUTPUT_DIR)$(GAME_NAME).asm sega_genesis
 
 	for dir in gfx hitboxes images music palettes sounds sprites tilesets; do \
 		sed -i "s/res\/$$dir\//res_$$dir\_/g" $(OUTPUT_DIR)$(GAME_NAME).asm; \
 	done
-
+	sed -i 's/,\.align 32/\
+.align 32/g' $(OUTPUT_DIR)$(GAME_NAME).asm
+	sed -i 's/dw\.align 32/.align 32/g' $(OUTPUT_DIR)$(GAME_NAME).asm
+	
 	../../naken_asm -I ~ -l -type bin -o $(OUTPUT_DIR)$(GAME_NAME).smd $(OUTPUT_DIR)$(GAME_NAME).asm
 
 dac:
@@ -42,7 +50,7 @@ setup:
 	go run bin2java.go z80_setup_synth.bin | grep -v INFO | sed 's/ClassName/SetupSynth/' | sed 's/code/z80_code/' > SetupSynth.java
 
 %.class: %.java
-	javac -classpath ../../build/JavaGrinder.jar:. $*.java
+	javac -d bin -cp ../../build/JavaGrinder.jar:./res:./src:. $*.java
 
 clean:
 	find . -name "*.class" -delete

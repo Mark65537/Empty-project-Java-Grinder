@@ -1,1 +1,7 @@
 *.class
+*.asm
+*.lst
+*.smd
+*.gen
+*.jar
+*.war

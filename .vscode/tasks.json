@@ -1,0 +1,17 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build wsl",
+            "type": "shell",
+            "command": "cmd", 
+            "args": [ "/C", "call \"!Build.bat\"" ],
+
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            },
+            "problemMatcher": []
+        }
+    ]
+}

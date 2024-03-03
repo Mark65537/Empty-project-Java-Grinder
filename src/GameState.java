@@ -1,4 +1,3 @@
-
 public class GameState {
     static final int LOGO = 0;  
     static final int INFO = 1;

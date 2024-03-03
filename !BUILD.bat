@@ -1,3 +1,3 @@
 @echo off
 wsl make grind
-pause
+@REM pause
