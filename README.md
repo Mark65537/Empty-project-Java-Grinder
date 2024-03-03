@@ -1,5 +1,5 @@
 # РУССКИЙ
-## Структура папок
+### Структура папок
 
 По умолчанию рабочая область содержит пять папок, где:
 
@@ -12,7 +12,7 @@
 > Если вы хотите настроить структуру папок, откройте .vscode/settings.json и обновите там соответствующие настройки.
 
 # ENGLISH
-## Folder Structure
+### Folder Structure
 
 The workspace contains five folders by default, where:
 
