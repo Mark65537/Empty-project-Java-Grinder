@@ -28,6 +28,9 @@ public class Main
     int x=SprArrow.X;
     int y=SprArrow.Y;
     
+    char[] c= {'E', 'm', 'p', 't', 'y', ' ', 'p', 'r', 'o', 'j', 'e', 'c', 't'};
+    
+
     ImgJavaGrinder.draw();  
                   
     SprArrow.draw();

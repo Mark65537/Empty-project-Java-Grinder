@@ -12,6 +12,56 @@
                 "panel": "new"
             },
             "problemMatcher": []
+        },
+        {
+            "label": "delete class files",
+            "type": "shell",
+            "command": "del /S *.class",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "windows": {
+                "options": {
+                    "shell": {
+                        "executable": "cmd.exe",
+                        "args": ["/d", "/c"]
+                    }
+                }
+            }
+        },
+        {
+            "label": "Run builded file",
+            "type": "shell",
+            "command": "setlocal enabledelayedexpansion && for %%f in (out\\*.smd out\\*.gen) do (if not defined file set \"file=%%f\") && if defined file (start \"\" \"!file!\") else (echo Cant find a .smd or .gen file in out && pause)",
+            "windows": {
+                "options": {
+                    "shell": {
+                        "executable": "cmd.exe",
+                        "args": ["/d", "/c"]
+                    }
+                }
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": true
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
         }
     ]
 }
