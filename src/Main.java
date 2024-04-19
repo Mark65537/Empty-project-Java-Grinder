@@ -1,16 +1,16 @@
 import net.mikekohn.java_grinder.SegaGenesis;
 
-//Imports
-// import res.hitboxes.*;
-import res.sprites.*;
-import res.images.*;
-// import res.music.*;
-// import res.sounds.*;
+//resource Imports
+// import hitboxes.*;
+import sprites.*;
+import images.*;
+// import music.*;
+// import sounds.*;
+//end resource Imports
+import ConsoleHelper.*;
 
 public class Main
 {  
-  // static final int CENTER_X = 270;
-  // static final int CENTER_Y = 230;
   static public void main(String[] args)
   {
     
@@ -26,15 +26,9 @@ public class Main
     int state = GameState.LOGO;    
     
     int x=SprArrow.X;
-    int y=SprArrow.Y;
-    
-    char[] c= {'E', 'm', 'p', 't', 'y', ' ', 'p', 'r', 'o', 'j', 'e', 'c', 't'};
-    
+    int y=SprArrow.Y;    
 
-    ImgJavaGrinder.draw();  
-                  
-    SprArrow.draw();
-
+    initDraw();
     // PlayBackgroundMusic();
     
     // Game loop
@@ -116,6 +110,14 @@ public class Main
       }        
     }
   
+  }
+
+  public static void initDraw() {
+    //Background
+    ImgJavaGrinder.draw();  
+    
+    //Sprites
+    SprArrow.draw();
   }
 
   

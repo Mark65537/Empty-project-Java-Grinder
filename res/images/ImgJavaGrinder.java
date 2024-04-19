@@ -1,4 +1,4 @@
-package res.images;
+package images;
 
 import net.mikekohn.java_grinder.SegaGenesis;
 

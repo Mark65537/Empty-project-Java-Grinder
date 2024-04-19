@@ -1,10 +1,4 @@
-/*
-RIConverter - Copyright 2023 by SegaMark
-readScreenData:
-*/
-
-package res.sprites;
-
+package sprites;
 
 import net.mikekohn.java_grinder.SegaGenesis;
 

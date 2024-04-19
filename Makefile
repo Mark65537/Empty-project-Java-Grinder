@@ -20,8 +20,9 @@ default: $(CLASSES)
 grind: $(CLASSES)
 	../../java_grinder $(BIN_DIR)Main.class $(OUTPUT_DIR)$(GAME_NAME).asm sega_genesis
 
-	for dir in gfx hitboxes images music palettes sounds sprites tilesets; do \
-		sed -i "s/res\/$$dir\//res_$$dir\_/g" $(OUTPUT_DIR)$(GAME_NAME).asm; \
+	# Вставьте сюда название пакета
+	for dir in gfx ConsoleHelper hitboxes images music palettes sounds sprites tilesets; do \
+		sed -i "s/$$dir\//$$dir\_/g" $(OUTPUT_DIR)$(GAME_NAME).asm; \
 	done
 	sed -i 's/,\.align 32/\
 .align 32/g' $(OUTPUT_DIR)$(GAME_NAME).asm
@@ -50,7 +51,7 @@ setup:
 	go run bin2java.go z80_setup_synth.bin | grep -v INFO | sed 's/ClassName/SetupSynth/' | sed 's/code/z80_code/' > SetupSynth.java
 
 %.class: %.java
-	javac -d bin -cp ../../build/JavaGrinder.jar:./res:./src:. $*.java
+	javac -d bin -cp ../../build/JavaGrinder.jar:./res:./src:.:./lib:. $*.java
 
 clean:
 	find . -name "*.class" -delete

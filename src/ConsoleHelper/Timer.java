@@ -1,3 +1,4 @@
+package ConsoleHelper;
 
 import net.mikekohn.java_grinder.SegaGenesis;
 

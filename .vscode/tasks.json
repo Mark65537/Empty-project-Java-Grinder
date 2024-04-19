@@ -2,10 +2,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build wsl",
+            "label": "Build wsl",
             "type": "shell",
-            "command": "cmd", 
-            "args": [ "/C", "call \"!Build.bat\"" ],
+            "command": "wsl make grind", 
 
             "presentation": {
                 "reveal": "always",
@@ -39,29 +38,40 @@
             }
         },
         {
-            "label": "Run builded file",
+            "label": "Run release file",
             "type": "shell",
-            "command": "setlocal enabledelayedexpansion && for %%f in (out\\*.smd out\\*.gen) do (if not defined file set \"file=%%f\") && if defined file (start \"\" \"!file!\") else (echo Cant find a .smd or .gen file in out && pause)",
             "windows": {
-                "options": {
-                    "shell": {
-                        "executable": "cmd.exe",
-                        "args": ["/d", "/c"]
-                    }
-                }
+              "command": "powershell",
+              "args": [
+                "-NoProfile",
+                "-Command",
+                "& { $file = Get-ChildItem -Path .\\out -Filter *.smd -Recurse | Select-Object -First 1; if ($file) { Start-Process $file.FullName }}"
+              ]
             },
+            "problemMatcher": []
+        },
+        {
+            "label": "Build and Run wsl",
+            "dependsOn": ["Build wsl", "Run builded file"],
+            "type": "shell",
+            "command": "echo Build and Run wsl task"
+        },
+        {
+            "label": "Clear and Build wsl",
+            "dependsOn": ["delete class files", "build wsl"],
+            "type": "shell",
+            "command": "echo Build and Run wsl task"
+        },
+        {
+            "label": "Clear wsl",
+            "type": "shell",
+            "command": "wsl make clean", 
+
             "presentation": {
-                "echo": true,
                 "reveal": "always",
-                "focus": false,
-                "panel": "shared",
-                "showReuseMessage": true,
-                "clear": true
+                "panel": "new"
             },
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            }
-        }
+            "problemMatcher": []
+        }, 
     ]
 }
