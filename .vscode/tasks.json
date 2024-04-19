@@ -52,7 +52,7 @@
         },
         {
             "label": "Build and Run wsl",
-            "dependsOn": ["Build wsl", "Run builded file"],
+            "dependsOn": ["Build wsl", "Run release file"],
             "type": "shell",
             "command": "echo Build and Run wsl task"
         },
