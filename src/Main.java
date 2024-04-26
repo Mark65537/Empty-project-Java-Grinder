@@ -26,7 +26,7 @@ public class Main
     int state = GameState.LOGO;    
     
     int x=SprArrow.X;
-    int y=SprArrow.Y;    
+    int y=SprArrow.Y;
 
     initDraw();
     // PlayBackgroundMusic();
