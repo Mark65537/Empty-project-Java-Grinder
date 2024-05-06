@@ -28,7 +28,7 @@ public class SprArrow
                                       );
           SegaGenesis.setSpriteConfig2(
                                         SPRITE_INDEX, 
-                                        SegaGenesis.SPRITE_CONFIG2_PALETTE_1 | 
+                                        SegaGenesis.SPRITE_CONFIG2_PALETTE_1 |                                         
                                         SPRITE_LOCATION
                                       );
         
@@ -40,7 +40,8 @@ public class SprArrow
     }
   
     public static void clear(){
-      SegaGenesis.setPatternTableAtIndex(SPRITE_LOCATION, clearPattern);
+        SegaGenesis.setPlotAddress(SPRITE_LOCATION);
+        SegaGenesis.clearPatterns(pattern.length);     
     }
     
 
@@ -83,49 +84,8 @@ public class SprArrow
   
 
   public static short[] palette =
-  {
-    
+  {    
     0xCAE, 0x000, 0xCCC, 0xEEE, 
-  };
-
-  
-    public static int[] clearPattern =
-    {
-      
-      
-        //Pattern 0
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 1
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 2
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 3
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 4
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 5
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 6
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-        //Pattern 7
-        0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    0x00000000, 0x00000000, 0x00000000, 0x00000000, 
-    
-    };
-    
+  };    
 }
 
