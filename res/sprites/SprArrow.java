@@ -46,8 +46,6 @@ public class SprArrow
 
   public static int[] pattern =
   {    
-    
-    
         //Pattern 0
         0x01100000, 0x01100000, 0x01110000, 0x01110000, 
     0x01121100, 0x01123310, 0x01123310, 0x01123331, 
