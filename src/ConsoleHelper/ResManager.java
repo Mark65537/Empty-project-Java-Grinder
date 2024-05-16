@@ -2,43 +2,76 @@ package ConsoleHelper;
 
 import net.mikekohn.java_grinder.SegaGenesis;
 
+/**
+ * ResManager - класс для управления ресурсами на платформе Sega Genesis.
+ */
 public class ResManager {
+    /**
+     * SprConfE - внутренний класс вместо перечисления, содержащий индексы массива int[] config для спрайтов.
+     */
     private class SprConfE {
         public static final int SPRITE_INDEX = 0;
         public static final int SPRITE_LOCATION = 1;
         public static final int PAL_INDEX = 2;
         public static final int X = 3;
         public static final int Y = 4;
-        public static final int NEXT_LINK = 5;
-        public static final int CONF_WORD1 = 6;
-        public static final int CONF_WORD2 = 7;        
+        public static final int CONF_WORD1 = 5;
+        public static final int CONF_WORD2 = 6;        
     }
-    
+
     public static final int SPR_PAL_INDEX = 16;
-    public static void drawBG(short[] image, short[] palette, int[] pattern)
-    {
+
+    /**
+     * Отрисовывает задний фон.
+     *
+     * @param pattern массив данных тайлов
+     * @param palette массив палитры
+     * @param tileMap массив тайловой карты
+     */
+    public static void drawBG(int[] pattern, short[] palette, short[] tileMap) {
         SegaGenesis.setPaletteColors(palette);
         SegaGenesis.setPatternTable(pattern);
-        SegaGenesis.setImageData(image);
+        SegaGenesis.setImageData(tileMap);
     }
-    public static void drawSpr(int[] pattern, short[] palette, int[] config)
-    {
-        SegaGenesis.setPaletteColorsAtIndex(config[2], palette);
-        SegaGenesis.setPatternTableAtIndex(config[1], pattern);    
-        SegaGenesis.setSpritePosition(config[0], config[SprConfE.X], config[4]);
 
-        SegaGenesis.setSpriteConfig1(config[0], config[6]);
-        SegaGenesis.setSpriteConfig2(config[0], config[7]);   
+    /**
+     * Отрисовывает спрайт.
+     *
+     * @param pattern массив данных паттернов
+     * @param palette массив данных палитры
+     * @param config массив конфигурации спрайта
+     */
+    public static void drawSpr(int[] pattern, short[] palette, int[] config) {
+        SegaGenesis.setPaletteColorsAtIndex(config[SprConfE.PAL_INDEX], palette);
+        SegaGenesis.setPatternTableAtIndex(config[SprConfE.SPRITE_LOCATION], pattern);    
+        SegaGenesis.setSpritePosition(config[SprConfE.SPRITE_INDEX], config[SprConfE.X], config[SprConfE.Y]);
+
+        SegaGenesis.setSpriteConfig1(config[SprConfE.SPRITE_INDEX], config[SprConfE.CONF_WORD1]);
+        SegaGenesis.setSpriteConfig2(config[SprConfE.SPRITE_INDEX], config[SprConfE.CONF_WORD2]);   
     }
-    public static void setSprTo0(int sprIndex){
+
+    /**
+     * Устанавливает позицию спрайта в (0, 0).
+     *
+     * @param sprIndex индекс спрайта
+     */
+    public static void setSprTo0(int sprIndex) {
         SegaGenesis.setSpritePosition(sprIndex, 0, 0);
     }
 
-    public static void clearSpr(int location, int length){
+    /**
+     * Очищает паттерны спрайта.
+     *
+     * @param location позиция в VDP
+     * @param length количество паттернов для очистки
+     */
+    public static void clearSpr(int location, int length) {
         SegaGenesis.setPlotAddress(location);
         SegaGenesis.clearPatterns(length);     
     }
 
+    /*
+    // Пример функции для получения индекса конфигурации по ключу
     // private int getConf(int[] conf, int key) {
     //   for (int i = 0; i < conf.length; i++) {
     //       if (conf[i] - key == 0) {
@@ -47,4 +80,5 @@ public class ResManager {
     //   }
     //   return -1;
     // }
+    */
 }

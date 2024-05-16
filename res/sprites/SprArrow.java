@@ -24,9 +24,8 @@ public class SprArrow
     PAL_INDEX,//2
     X,//3
     Y,//4    
-    NEXT_LINK, //5
-    CONF_WORD1,//6
-    CONF_WORD2 //7
+    CONF_WORD1,//5
+    CONF_WORD2 //6
   };
 
   public static int[] pattern =

@@ -114,7 +114,7 @@ public class Main
 
   public static void initDraw() {
     //Background
-    ResManager.drawBG(ImgJavaGrinder.image, ImgJavaGrinder.palette, ImgJavaGrinder.pattern);  
+    ResManager.drawBG(ImgJavaGrinder.pattern, ImgJavaGrinder.palette, ImgJavaGrinder.image);  
     
     //Sprites
     ResManager.drawSpr(SprArrow.pattern, SprArrow.palette, SprArrow.config);
