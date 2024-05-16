@@ -10,8 +10,11 @@ public class Text {
      * @param text The text to be printed.
      */
     public static void print(String text) {
-        SegaGenesis.setCursor(0, 0);
-        SegaGenesis.print(text);
+        print(text, 0, 0);
+    }
+
+    public static void printChar(char chr) {
+        printChar(chr, 0, 0);
     }
     /**
      * Prints text at the specified position.
@@ -22,6 +25,17 @@ public class Text {
     public static void print(String text, int x, int y) {
         SegaGenesis.setCursor(x, y);
         SegaGenesis.print(text);
+    }
+
+    /**
+     * Prints a single character at the specified position.
+     * @param chr The character to be printed.
+     * @param x0 The x-coordinate for the character position.
+     * @param y0 The y-coordinate for the character position.
+     */
+    public static void printChar(char chr, int x0, int y0) {        
+        SegaGenesis.setCursor(x0, y0);
+        SegaGenesis.printChar(chr);
     }
 
     /**
@@ -51,16 +65,7 @@ public class Text {
         print(text, x, y);        
     }
 
-    /**
-     * Prints a single character at the specified position.
-     * @param chr The character to be printed.
-     * @param x0 The x-coordinate for the character position.
-     * @param y0 The y-coordinate for the character position.
-     */
-    public static void print(char chr, int x0, int y0) {        
-        SegaGenesis.setCursor(x0, y0);
-        SegaGenesis.printChar(chr);
-    }
+    
 
     // The following method is commented out due to an unimplemented opcode error.
     // Opcode (52) 'caload' unimplemented

@@ -3,47 +3,31 @@ package sprites;
 import net.mikekohn.java_grinder.SegaGenesis;
 
 public class SprArrow
-{
-  
+{  
     public static final int X=270;    
     public static final int Y=230;
     public static final int SIZE=32;
+    public static final int PAL_INDEX=16;
     public static final int SPRITE_INDEX = 0;
     public static final int SPRITE_LOCATION = 0x04A0;
     public static final int NEXT_LINK = SPRITE_INDEX + 1;
-    
+    public static final int CONF_WORD1 = SegaGenesis.SPRITE_CONFIG1_HORIZONTAL_SIZE_2_CELL | 
+                                         SegaGenesis.SPRITE_CONFIG1_VERTICAL_SIZE_4_CELL |
+                                         NEXT_LINK;
+    public static final int CONF_WORD2 = SegaGenesis.SPRITE_CONFIG2_PALETTE_1 |                                         
+                                         SPRITE_LOCATION;
 
-  public static void draw()
-  {
-    
-          SegaGenesis.setPaletteColorsAtIndex(16, palette);
-          SegaGenesis.setPatternTableAtIndex(SPRITE_LOCATION, pattern);
-          
-          SegaGenesis.setSpritePosition(SPRITE_INDEX, X, Y);
-          SegaGenesis.setSpriteConfig1(
-                                        SPRITE_INDEX,
-                                        SegaGenesis.SPRITE_CONFIG1_HORIZONTAL_SIZE_2_CELL | 
-                                        SegaGenesis.SPRITE_CONFIG1_VERTICAL_SIZE_4_CELL |
-                                        NEXT_LINK
-                                      );
-          SegaGenesis.setSpriteConfig2(
-                                        SPRITE_INDEX, 
-                                        SegaGenesis.SPRITE_CONFIG2_PALETTE_1 |                                         
-                                        SPRITE_LOCATION
-                                      );
-        
-  }
-
-  
-    public static void setTo0(){
-      SegaGenesis.setSpritePosition(SPRITE_INDEX, 0, 0);
-    }
-  
-    public static void clear(){
-        SegaGenesis.setPlotAddress(SPRITE_LOCATION);
-        SegaGenesis.clearPatterns(pattern.length);     
-    }
-    
+  //Последовательность смотри в ResManager.SprConfE                                         
+  public static int[] config = {
+    SPRITE_INDEX,//0
+    SPRITE_LOCATION,//1
+    PAL_INDEX,//2
+    X,//3
+    Y,//4    
+    NEXT_LINK, //5
+    CONF_WORD1,//6
+    CONF_WORD2 //7
+  };
 
   public static int[] pattern =
   {    

@@ -4,6 +4,7 @@ import net.mikekohn.java_grinder.SegaGenesis;
 // import hitboxes.*;
 import sprites.*;
 import images.*;
+
 // import music.*;
 // import sounds.*;
 //end resource Imports
@@ -12,8 +13,7 @@ import ConsoleHelper.*;
 public class Main
 {  
   static public void main(String[] args)
-  {
-    
+  {                                              
     // Set Font.
     SegaGenesis.loadFonts();
     SegaGenesis.clearText();
@@ -73,7 +73,7 @@ public class Main
               // проверка нажатия кнопки B          
               if(keyCode == (i+0x0090)) {
 
-                SprArrow.setTo0();
+                ResManager.setSprTo0(SprArrow.SPRITE_INDEX);
                           
                 pressed = true;
                 break;
@@ -114,10 +114,10 @@ public class Main
 
   public static void initDraw() {
     //Background
-    ImgJavaGrinder.draw();  
+    ResManager.drawBG(ImgJavaGrinder.image, ImgJavaGrinder.palette, ImgJavaGrinder.pattern);  
     
     //Sprites
-    SprArrow.draw();
+    ResManager.drawSpr(SprArrow.pattern, SprArrow.palette, SprArrow.config);
   }
 
   

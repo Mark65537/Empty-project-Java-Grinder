@@ -4,12 +4,6 @@ import net.mikekohn.java_grinder.SegaGenesis;
 
 public class ImgJavaGrinder
 {
-  public static void draw()
-  {
-    SegaGenesis.setPaletteColors(palette);
-    SegaGenesis.setPatternTable(pattern);
-    SegaGenesis.setImageData(image);
-  }
 
   public static int[] pattern =
   {
