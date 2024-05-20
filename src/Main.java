@@ -27,6 +27,8 @@ public class Main
     
     int x=SprArrow.X;
     int y=SprArrow.Y;
+    boolean isFlipH = false;
+    boolean isFlipV = false;
 
     initDraw();
     // PlayBackgroundMusic();
@@ -64,21 +66,33 @@ public class Main
 
         // проверка нажатия кнопки A 0xD080        
         if(keyCode == 0xD080) {
-
-          ResManager.flipHSpr(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
+          if(isFlipH) {
+            SegaGenesis.setSpriteConfig2(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
+            isFlipH = false;
+          }
+          else{
+            ResManager.flipHSpr(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
+            isFlipH = true;
+          }
           pressed = true;
         }
 
         // проверка нажатия кнопки B 0x90         
         if((byte)keyCode == (byte)0x90) {
-
           ResManager.setSprTo0(SprArrow.SPRITE_INDEX);                    
           pressed = true;
         }
 
         // // проверка нажатия кнопки C 0xA0         
         if((byte)keyCode == (byte)0xA0) {                      
-          ResManager.flipVSpr(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
+          if(isFlipV) {
+            SegaGenesis.setSpriteConfig2(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
+            isFlipV = false;
+          }
+          else{
+            ResManager.flipVSpr(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
+            isFlipV = true;
+          }
           pressed = true;
         }
 

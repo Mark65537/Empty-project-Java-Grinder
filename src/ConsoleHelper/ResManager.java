@@ -70,10 +70,43 @@ public class ResManager {
         SegaGenesis.clearPatterns(length);     
     }
 
-    public static void flipHSpr(int SPRITE_INDEX, int confWord2){
-        SegaGenesis.setSpriteConfig2(SPRITE_INDEX, confWord2 | SegaGenesis.SPRITE_CONFIG2_HORIZONTAL_FLIP);
-    }
+    /**
+     * Зеркалит спрайт по горизонтали. Обратного преобразования нет.
+     * Для того чтобы вернуть спрайт в исходное состояние нужно вызвать 
+     * SegaGenesis.setSpriteConfig2(SPRITE_INDEX, confWord2);
+     *
+     * @param SPRITE_INDEX the index of the sprite to flip
+     * @param confWord2 the current configuration word 2 of the sprite. This value will be updated with the horizontal flip flag.
+     *
+     * @see SegaGenesis#SPRITE_CONFIG2_HORIZONTAL_FLIP
+     * @see SegaGenesis#setSpriteConfig2(int, int)
+     */
+    public static void flipHSpr(int SPRITE_INDEX, int confWord2) {
+        int temp = confWord2 | SegaGenesis.SPRITE_CONFIG2_HORIZONTAL_FLIP; 
+        // Проверяем, установлен ли флаг SegaGenesis.SPRITE_CONFIG2_HORIZONTAL_FLIP
+        if ((confWord2 ^ (temp)) == 0) {
+            // Если установлен, убираем его
+            confWord2 ^= SegaGenesis.SPRITE_CONFIG2_HORIZONTAL_FLIP;
+        } else {
+            // Если не установлен, добавляем его
+            confWord2 |= SegaGenesis.SPRITE_CONFIG2_HORIZONTAL_FLIP;
+        }
+        
+        // Устанавливаем конфигурацию спрайта
+        SegaGenesis.setSpriteConfig2(SPRITE_INDEX, confWord2);
+    }    
 
+    /**
+     * Зеркалит спрайт по вертикали. Обратного преобразования нет.
+     * Для того чтобы вернуть спрайт в исходное состояние нужно вызвать 
+     * SegaGenesis.setSpriteConfig2(SPRITE_INDEX, confWord2);
+     *
+     * @param spriteIndex the index of the sprite to flip
+     * @param confWord2 the current configuration word 2 of the sprite. This value will be updated with the vertical flip flag.
+     *
+     * @see SegaGenesis#SPRITE_CONFIG2_VERTICAL_FLIP
+     * @see SegaGenesis#setSpriteConfig2(int, int)
+     */
     public static void flipVSpr(int spriteIndex, int confWord2) {
         SegaGenesis.setSpriteConfig2(spriteIndex, confWord2 | SegaGenesis.SPRITE_CONFIG2_VERTICAL_FLIP);
     }
