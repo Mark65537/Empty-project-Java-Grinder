@@ -4,7 +4,7 @@ import net.mikekohn.java_grinder.SegaGenesis;
 
 public class Timer
 {
-  static public void wait(int frames)
+  public static void wait(int frames)
   {
     int a;
 

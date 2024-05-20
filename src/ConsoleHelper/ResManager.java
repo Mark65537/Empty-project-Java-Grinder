@@ -22,7 +22,7 @@ public class ResManager {
     public static final int SPR_PAL_INDEX = 16;
 
     /**
-     * Отрисовывает задний фон.
+     * Рисует задний фон.
      *
      * @param pattern массив данных тайлов
      * @param palette массив палитры
@@ -35,7 +35,7 @@ public class ResManager {
     }
 
     /**
-     * Отрисовывает спрайт.
+     * Рисует спрайт.
      *
      * @param pattern массив данных паттернов
      * @param palette массив данных палитры
@@ -68,6 +68,14 @@ public class ResManager {
     public static void clearSpr(int location, int length) {
         SegaGenesis.setPlotAddress(location);
         SegaGenesis.clearPatterns(length);     
+    }
+
+    public static void flipHSpr(int SPRITE_INDEX, int confWord2){
+        SegaGenesis.setSpriteConfig2(SPRITE_INDEX, confWord2 | SegaGenesis.SPRITE_CONFIG2_HORIZONTAL_FLIP);
+    }
+
+    public static void flipVSpr(int spriteIndex, int confWord2) {
+        SegaGenesis.setSpriteConfig2(spriteIndex, confWord2 | SegaGenesis.SPRITE_CONFIG2_VERTICAL_FLIP);
     }
 
     /*
