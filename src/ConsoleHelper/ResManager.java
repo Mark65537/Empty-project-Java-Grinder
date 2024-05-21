@@ -70,6 +70,18 @@ public class ResManager {
         SegaGenesis.clearPatterns(length);     
     }
 
+    // public static void clearSpr(Class<?> ref) {
+    //     try {
+    //         int spriteLocation = (int) ref.getField("SPRITE_LOCATION").get(null);
+    //         int size = (int) ref.getField("SIZE").get(null);
+
+    //         SegaGenesis.setPlotAddress(spriteLocation);
+    //         SegaGenesis.clearPatterns(size);
+    //     } catch (NoSuchFieldException | IllegalAccessException e) {
+            
+    //     }
+    // }
+
     /**
      * Зеркалит спрайт по горизонтали. Обратного преобразования нет.
      * Для того чтобы вернуть спрайт в исходное состояние нужно вызвать 

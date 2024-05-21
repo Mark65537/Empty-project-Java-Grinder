@@ -18,8 +18,8 @@ public class Main
     SegaGenesis.loadFonts();
     SegaGenesis.clearText();
 
-    // Переменные
-    int keyCode = 0;
+
+    //region Изменяемые переменные
     boolean pressed = false;
     boolean isPlayed = true;
     int speed=1;
@@ -29,6 +29,8 @@ public class Main
     int y=SprArrow.Y;
     boolean isFlipH = false;
     boolean isFlipV = false;
+    //endregion
+
 
     initDraw();
     // PlayBackgroundMusic();
@@ -36,7 +38,7 @@ public class Main
     // Game loop
     while(isPlayed) {        
 
-      keyCode = SegaGenesis.getJoypadValuePort1();
+      int keyCode = SegaGenesis.getJoypadValuePort1();
       
       //проверка нажатий кнопок
       if(!pressed){
@@ -78,13 +80,13 @@ public class Main
         }
 
         // проверка нажатия кнопки B 0x90         
-        if((byte)keyCode == (byte)0x90) {
+        if((byte)keyCode == -112) {
           ResManager.setSprTo0(SprArrow.SPRITE_INDEX);                    
           pressed = true;
         }
 
         // // проверка нажатия кнопки C 0xA0         
-        if((byte)keyCode == (byte)0xA0) {                      
+        if((byte)keyCode == -96) {                      
           if(isFlipV) {
             SegaGenesis.setSpriteConfig2(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
             isFlipV = false;
@@ -118,6 +120,7 @@ public class Main
       }
       
     }  
+  
   }
 
   public static void initDraw() {
