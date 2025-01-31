@@ -42,32 +42,47 @@ public class Main
       
       //проверка нажатий кнопок
       if(!pressed){
-        // проверка нажатия кнопки вверх 0x81
-        if((byte)keyCode == -127 && y > 0x7F) {                      
+        // // проверка нажатия кнопки вверх 0x81
+        // if((byte)keyCode == -127 && y > 0x7F) {                      
+        //   SegaGenesis.setSpritePosition(0, x, y -= speed);
+        //   Timer.wait(1);
+        // }
+        if((keyCode & SegaGenesis.JOYPAD_UP) != 0) {
+          if(y < 0x7F) {
+            continue;
+          }
           SegaGenesis.setSpritePosition(0, x, y -= speed);
           Timer.wait(1);
         }
 
         // проверка нажатия кнопки вниз 0x82            
-        if((byte)keyCode == -126 && y < 0x160) {                      
+        if((keyCode & SegaGenesis.JOYPAD_DOWN) != 0) {
+          if(y > 0x160) {
+            continue;
+          }
           SegaGenesis.setSpritePosition(0, x, y += speed);
           Timer.wait(1);
         }
               
         // проверка нажатия кнопки влево 0x84                   
-        if((byte)keyCode == -124 && x > 0x7E) {                      
-          SegaGenesis.setSpritePosition(0, x -= speed, y);
-          Timer.wait(1);                
+        if((keyCode & SegaGenesis.JOYPAD_LEFT) != 0) {                      
+          if(x > 0x7E) {
+            continue;
+          }                      
+            SegaGenesis.setSpritePosition(0, x -= speed, y);
+            Timer.wait(1);                          
         }
 
         // проверка нажатия кнопки вправо 0x88         
-        if((byte)keyCode == -120 && x < 0x1C0) {                      
-          SegaGenesis.setSpritePosition(0, x += speed, y);
-          Timer.wait(1);
+        if((keyCode & SegaGenesis.JOYPAD_RIGHT) != 0) {                      
+          if(x < 0x1C0) {                      
+            SegaGenesis.setSpritePosition(0, x += speed, y);
+            Timer.wait(1);
+          }
         }
 
         // проверка нажатия кнопки A 0xD080        
-        if(keyCode == 0xD080) {
+        if((keyCode & SegaGenesis.JOYPAD_A) != 0) {
           if(isFlipH) {
             SegaGenesis.setSpriteConfig2(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
             isFlipH = false;
@@ -85,7 +100,7 @@ public class Main
           pressed = true;
         }
 
-        // // проверка нажатия кнопки C 0xA0         
+        // проверка нажатия кнопки C 0xA0         
         if((byte)keyCode == -96) {                      
           if(isFlipV) {
             SegaGenesis.setSpriteConfig2(SprArrow.SPRITE_INDEX, SprArrow.CONF_WORD2);
