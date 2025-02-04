@@ -18,7 +18,7 @@ CLASSES= $(SPRITES) $(IMAGES) $(SRC_CLASSES)#SegaGenesisJavaDemo.class ImginfoSc
 default: $(CLASSES)
 
 grind: $(CLASSES)
-	../../java_grinder $(BIN_DIR)Main.class $(OUTPUT_DIR)$(GAME_NAME).asm sega_genesis
+	../../JAVA_GRINDER/java_grinder $(BIN_DIR)Main.class $(OUTPUT_DIR)$(GAME_NAME).asm sega_genesis
 
 	# Вставьте сюда название пакета
 	for dir in gfx ConsoleHelper hitboxes images music palettes sounds sprites tilesets; do \
@@ -28,7 +28,7 @@ grind: $(CLASSES)
 .align 32/g' $(OUTPUT_DIR)$(GAME_NAME).asm
 	sed -i 's/dw\.align 32/.align 32/g' $(OUTPUT_DIR)$(GAME_NAME).asm
 	
-	../../naken_asm -I ~ -l -type bin -o $(OUTPUT_DIR)$(GAME_NAME).smd $(OUTPUT_DIR)$(GAME_NAME).asm
+	../../JAVA_GRINDER/naken_asm -I ~ -l -type bin -o $(OUTPUT_DIR)$(GAME_NAME).smd $(OUTPUT_DIR)$(GAME_NAME).asm
 
 dac:
 	naken_asm -l -type bin -o z80_play_dac.bin z80_play_dac.asm
@@ -51,7 +51,7 @@ setup:
 	go run bin2java.go z80_setup_synth.bin | grep -v INFO | sed 's/ClassName/SetupSynth/' | sed 's/code/z80_code/' > SetupSynth.java
 
 %.class: %.java
-	javac -d bin -cp ../../build/JavaGrinder.jar:./res:./src:.:./lib:. $*.java
+	javac -d bin -cp ../../JAVA_GRINDER/build/JavaGrinder.jar:./res:./src:.:./lib:. $*.java
 
 clean:
 	find . -name "*.class" -delete

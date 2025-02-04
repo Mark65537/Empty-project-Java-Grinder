@@ -59,7 +59,7 @@ public class Main {
 
         // проверка нажатия кнопки влево 0x84
         if ((keyCode & SegaGenesis.JOYPAD_LEFT) != 0) {
-          if (x > 0x7E) {
+          if (x < 0x7E) {
             continue;
           }
           SegaGenesis.setSpritePosition(0, x -= speed, y);

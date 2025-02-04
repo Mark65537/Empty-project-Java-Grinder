@@ -5,4 +5,7 @@
 *.gen
 *.jar
 *.war
-bin/palettes/.gitkeep
+bin/*
+Gens.cfg
+out/language.dat
+language.dat
