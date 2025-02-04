@@ -6,6 +6,6 @@
     "java.project.outputPath": "bin",
     "java.project.referencedLibraries": [
         "lib/**/*.jar",
-        "..\\..\\build\\JavaGrinder.jar",
+        "..\\..\\JAVA GRINDER\\build\\JavaGrinder.jar",
     ]
 }
